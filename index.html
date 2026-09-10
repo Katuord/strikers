@@ -1310,16 +1310,20 @@
         // ==========================================
         // 譜面エディタ
         // ==========================================
-        function startEditor() {
-            initAudio(); currentNotes = safeLoadChart(); editorScrollSec = 0; changeScreen('editor'); 
-            if(scWidget) { 
-                scWidget.setVolume(masterVolume);
-                scWidget.seekTo(0); 
-                scWidget.pause(); 
-                document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE"; 
-            }
-            isTrackPlaying = false;
-        }
+function startEditor() {
+    initAudio(); currentNotes = safeLoadChart(); editorScrollSec = 0; changeScreen('editor'); 
+    if(scWidget) { 
+        scWidget.setVolume(masterVolume);
+        scWidget.seekTo(0); 
+        scWidget.pause(); 
+        document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE"; 
+    }
+    isTrackPlaying = false;
+
+    // --- 以下の2行を追加 ---
+    lastFrameTimestamp = performance.now();
+    requestAnimationFrame(engineLoop);
+}
 
         function toggleRecAction() { initAudio(); if (!isRecording) startRecordingFromZero(); else stopRecording(); }
 
