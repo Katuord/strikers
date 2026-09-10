@@ -1,5 +1,5 @@
 // Musicdata2.js
-const.songList2 = [
+window.songList2 = [
     {
         id: "music2",
         title: "Cration of Hatred (slowed)",
@@ -13,7 +13,7 @@ const.songList2 = [
                 {time: 7.0, lane: 3}, {time: 8.0, lane: 1, isLong: true, endTime: 9.5}, {time: 10.0, lane: 0}
             ],
             normal: [
-                {"time: 1.0, lane: 0}
+                {time: 1.0, lane: 0}
             ],
             hard: [
                 {time: 1.0, lane: 0}, {time: 1.2, lane: 1}, {time: 1.4, lane: 2}, {time: 1.6, lane: 3},
