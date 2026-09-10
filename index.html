@@ -570,8 +570,14 @@
         <iframe id="sc-player" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&amp;auto_play=false" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay"></iframe>
     </div>
 
-    <!-- 分離した譜面データをここで読み込む -->
+
+   <!-- 分離した譜面データをここで読み込む -->
     <script src="Musicdata1.js"></script>
+    <script src="Musicdata2.js" onerror="this.onerror=null; console.log('Musicdata2.js is not loaded or missing.');"></script>
+    <script src="Musicdata3.js" onerror="this.onerror=null; console.log('Musicdata3.js is not loaded or missing.');"></script>
+    <script src="Musicdata4.js" onerror="this.onerror=null; console.log('Musicdata4.js is not loaded or missing.');"></script>
+    <script src="Musicdata5.js" onerror="this.onerror=null; console.log('Musicdata5.js is not loaded or missing.');"></script>
+
 
     <script>
 
@@ -1552,10 +1558,16 @@
             requestAnimationFrame(engineLoop);
         }
 
-        // ==========================================
+            // ==========================================
         // 初期化 & APIイベントバインド
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
+            // 追加のMusicdata配列が存在する場合、メインのsongListに全て結合する機能を追加
+            if (window.songList2) window.songList = window.songList.concat(window.songList2);
+            if (window.songList3) window.songList = window.songList.concat(window.songList3);
+            if (window.songList4) window.songList = window.songList.concat(window.songList4);
+            if (window.songList5) window.songList = window.songList.concat(window.songList5);
+
             initAccountSystem();
             
             const iframe = document.getElementById('sc-player');
