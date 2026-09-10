@@ -1,5 +1,5 @@
 // Musicdata2.js
-window.songList2 = [
+const.songList2 = [
     {
         id: "music2",
         title: "Cration of Hatred (slowed)",
