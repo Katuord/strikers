@@ -6,7 +6,7 @@ window.songList3 = [
         title: "PLEAD (slowed)",
         artist: "in Forsaken",
         scUrl: "https://soundcloud.com/tg-claps-gabe-m/key-after-key-plead-slowed",
-        levels: { easy: "Easy Lv.4", normal: "Normal Lv.7", hard: "Hard Lv.9" },
+        levels: { easy: "Easy Lv.4", normal: "Normal Lv.7", hard: "Hard Lv.9",expert: "Expert Lv.7"},
         charts: {
             easy: [
                 {time: 2.0, lane: 0}, {time: 2.5, lane: 1}, {time: 3.0, lane: 2}, {time: 3.5, lane: 3},
