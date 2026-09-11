@@ -5,7 +5,7 @@ window.songList2 = [
         title: "Cration of Hatred (slowed)",
         artist: "in Forsaken",
         scUrl: "https://soundcloud.com/alexandru-r-doi-326628379/roblox-forsaken-creation-of",
-        levels: { easy: "Easy Lv.4", normal: "Normal Lv.5", hard: "Hard Lv.11" },
+        levels: { easy: "Easy Lv.4", normal: "Normal Lv.5", hard: "Hard Lv.11", expert: "Expert Lv.7" },
         charts: {
             easy: [
                 {time: 2.0, lane: 0}, {time: 2.5, lane: 1}, {time: 3.0, lane: 2}, {time: 3.5, lane: 3},
