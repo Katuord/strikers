@@ -5,7 +5,7 @@ window.songList = [
         title: "Weather Girl",
         artist: "flavor foley",
         scUrl: "https://soundcloud.com/mmjkaito/weathergirl-flavor-foley",
-        levels: { easy: "Easy Lv.3", normal: "Normal Lv.6", hard: "Hard Lv.9" },
+        levels: { easy: "Easy Lv.3", normal: "Normal Lv.6", hard: "Hard Lv.9", expert: "Expert Lv.7" },
         charts: {
             easy: [
                 {time: 2.0, lane: 0}, {time: 2.5, lane: 1}, {time: 3.0, lane: 2}, {time: 3.5, lane: 3},
