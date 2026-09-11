@@ -28,6 +28,9 @@ window.songList = [
                 {time: 2.0, lane: 2}, {time: 2.2, lane: 1}, {time: 2.4, lane: 0}, {time: 2.6, lane: 3},
                 {time: 3.0, lane: 0, isLong: true, endTime: 4.5}, {time: 3.5, lane: 3, isLong: true, endTime: 5.0},
                 {time: 5.5, lane: 1}, {time: 5.7, lane: 2}, {time: 5.9, lane: 1}, {time: 6.1, lane: 2}
+            ],
+            expert: [
+               {time:1.0,lane:0}
             ]
         }
     },
