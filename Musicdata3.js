@@ -18,6 +18,9 @@ window.songList3 = [
             ],
             hard: [
               {time:1.0, lane: 0}
+            ],
+            expert: [
+               {time:1.0,lane:0}
             ]
         }
     },
