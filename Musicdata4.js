@@ -6,7 +6,7 @@ window.songList4 = [
         title: "CENSORED!! [PIXELATION THEME]",
         artist: "in Sol's ",
         scUrl: "https://soundcloud.com/ryan-nguyen-883211384/tpazolite-censored-full-ver",
-        levels: { easy: "Easy Lv.7", normal: "Normal Lv.7", hard: "Hard Lv.7", expert: "Expert Lv.7 },
+        levels: { easy: "Easy Lv.7", normal: "Normal Lv.7", hard: "Hard Lv.7", expert: "Expert Lv.7" },
         charts: {
             easy: [
                 {time: 2.0, lane: 0}, {time: 2.5, lane: 1}, {time: 3.0, lane: 2}, {time: 3.5, lane: 3},
