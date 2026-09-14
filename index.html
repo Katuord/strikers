@@ -210,9 +210,9 @@
         @keyframes rainbowGlowNoRotate {
             0% { background-position: 0% 50%; filter: hue-rotate(0deg); opacity: 0; }
             10% { opacity: 0.9; }
-            50% { background-position: 200% 50%; filter: hue-rotate(1800deg); opacity: 0.9; }
+            50% { background-position: 200% 50%; filter: hue-rotate(180deg); opacity: 0.9; }
             90% { opacity: 0.9; }
-            100% { background-position: 400% 50%; filter: hue-rotate(3600deg); opacity: 0; }
+            100% { background-position: 400% 50%; filter: hue-rotate(360deg); opacity: 0; }
         }
 
         #equinox-overlay {
@@ -690,6 +690,14 @@
     <script src="Musicdata3.js" onerror="this.onerror=null; console.log('Musicdata3.js is not loaded or missing.');"></script>
     <script src="Musicdata4.js" onerror="this.onerror=null; console.log('Musicdata4.js is not loaded or missing.');"></script>
     <script src="Musicdata5.js" onerror="this.onerror=null; console.log('Musicdata5.js is not loaded or missing.');"></script>
+
+    <!-- Keep every separate song data file active in the main song list. -->
+    <script>
+        if (Array.isArray(window.songList2)) window.songList.push(...window.songList2);
+        if (Array.isArray(window.songList3)) window.songList.push(...window.songList3);
+        if (Array.isArray(window.songList4)) window.songList.push(...window.songList4);
+        if (Array.isArray(window.songList5)) window.songList.push(...window.songList5);
+    </script>
 
     <script>
         let gridSnapSec = 0.05;
