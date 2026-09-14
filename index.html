@@ -184,6 +184,11 @@
         .editor-main { flex: 1; height: 100%; background: rgba(2,3,8,0.85); position: relative; }
         #editorCanvas { width: 100%; height: 100%; cursor: pointer; }
 
+        /* v7 Ultimate editor usability additions (non-destructive) */
+        .editor-main { min-width: 0; overflow: hidden; }
+        #editorCanvas { touch-action: none; image-rendering: auto; }
+        #zoomSlider { accent-color: var(--accent-neon); }
+
         .modal-base { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(2, 3, 10, 0.88); display: none; justify-content: center; align-items: center; z-index: 999; opacity: 0; transition: opacity 0.25s; backdrop-filter: blur(8px); }
         .modal-base.show { display: flex; opacity: 1; }
         .modal-box { background: #060814; border: 1px solid var(--accent-neon); width: 580px; max-width: 92%; padding: 25px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 0 40px rgba(0,240,255,0.2); border-radius: 6px; }
@@ -1996,6 +2001,208 @@
                 if (btn) btn.innerText = userKeys[i].toUpperCase();
             }
         });
+
+/* ================================================================
+   STRIKERS!! v7 ULTIMATE STABILITY PATCH
+   - Rainbow changes to the next hue every exactly 1.0 second.
+   - Test Play returns safely to the editor and restarts its renderer.
+   - Editor default zoom is reduced and stays visually stable.
+   - Wheel scrolling + Ctrl/Alt wheel zoom for easier chart editing.
+   - Editor chart data is cloned before editing to avoid accidental
+     mutation of the source object.
+   - Recording ignores key auto-repeat to prevent duplicate notes.
+   - Existing systems/functions/data are intentionally preserved.
+   ================================================================ */
+(function(){
+    'use strict';
+
+    let rainbowColorInterval = null;
+    let rainbowFadeTimer = null;
+    let editorReturnState = { scrollSec: 0, zoom: 180 };
+    const ORIGINAL_RESET_VISUAL_EFFECTS = resetVisualEffects;
+    const ORIGINAL_START_EDITOR = startEditor;
+    const ORIGINAL_TRY_TEST_PLAY = tryTestPlay;
+    const ORIGINAL_FINISH_GAME = finishGame;
+
+    function clearRainbowTimers(){
+        if (rainbowColorInterval) { clearInterval(rainbowColorInterval); rainbowColorInterval = null; }
+        if (rainbowFadeTimer) { clearTimeout(rainbowFadeTimer); rainbowFadeTimer = null; }
+    }
+
+    /* Keep every existing reset operation, then clean our additional timer. */
+    resetVisualEffects = function(){
+        clearRainbowTimers();
+        ORIGINAL_RESET_VISUAL_EFFECTS();
+        const rb = document.getElementById('rainbow-overlay');
+        if (rb) {
+            rb.style.transition = '';
+            rb.style.filter = '';
+            rb.style.opacity = '0';
+        }
+    };
+
+    /* Fixed 1-second color steps. The filter transition makes each step
+       feel like a soft 'muwaaa' blend instead of an abrupt jump. */
+    triggerRainbowEffect = function(duration){
+        const el = document.getElementById('rainbow-overlay');
+        if (!el) return;
+
+        clearRainbowTimers();
+        el.style.display = 'block';
+        el.style.animation = 'none';
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.35s ease, filter 0.86s cubic-bezier(0.22, 1, 0.36, 1)';
+        el.style.filter = 'hue-rotate(0deg)';
+        void el.offsetWidth;
+        requestAnimationFrame(() => { el.style.opacity = '0.78'; });
+
+        let step = 0;
+        rainbowColorInterval = setInterval(() => {
+            step++;
+            const hue = (step * 60) % 360;
+            el.style.filter = `hue-rotate(${hue}deg)`;
+        }, 1000);
+
+        rainbowTimer = setTimeout(() => {
+            clearRainbowTimers();
+            el.style.opacity = '0';
+            rainbowFadeTimer = setTimeout(() => {
+                el.style.display = 'none';
+                el.style.animation = '';
+                el.style.transition = '';
+                el.style.filter = '';
+                el.style.opacity = '0';
+            }, 380);
+        }, Math.max(0.1, Number(duration) || 2) * 1000);
+    };
+
+    /* The original editor uses 400 px/s by default. Make the timeline much
+       easier to read without removing the original zoom control/range. */
+    function applyEditorZoomDefaults(){
+        const slider = document.getElementById('zoomSlider');
+        if (!slider) return;
+        slider.min = '80';
+        slider.max = '500';
+        slider.step = '10';
+        if (!editorReturnState.zoom || editorReturnState.zoom === 400) editorReturnState.zoom = 180;
+        slider.value = String(Math.max(80, Math.min(500, editorReturnState.zoom)));
+        pxPerSec = Number(slider.value) || 180;
+        resizeEditorCanvas();
+    }
+
+    const ORIGINAL_UPDATE_ZOOM = updateZoom;
+    updateZoom = function(){
+        const slider = document.getElementById('zoomSlider');
+        if (!slider) return ORIGINAL_UPDATE_ZOOM();
+        let value = Number(slider.value);
+        if (!Number.isFinite(value)) value = 180;
+        value = Math.max(80, Math.min(500, value));
+        slider.value = String(value);
+        pxPerSec = value;
+        editorReturnState.zoom = value;
+        resizeEditorCanvas();
+    };
+
+    /* Preserve the existing editor initialization while eliminating shared
+       object references between the editor and the song source data. */
+    startEditor = function(){
+        editorReturnState.scrollSec = 0;
+        ORIGINAL_START_EDITOR();
+        currentNotes = JSON.parse(JSON.stringify(currentNotes || []));
+        currentNotes.sort((a,b) => (Number(a.time)||0) - (Number(b.time)||0));
+        editorScrollSec = Math.max(0, Number(editorReturnState.scrollSec) || 0);
+        applyEditorZoomDefaults();
+        resizeEditorCanvas();
+    };
+
+    /* Save the exact editor viewport before Test Play and resume editor
+       rendering after the gameplay loop ends. */
+    tryTestPlay = function(){
+        editorReturnState.scrollSec = Math.max(0, Number(editorScrollSec) || 0);
+        editorReturnState.zoom = Math.max(80, Math.min(500, Number(pxPerSec) || 180));
+        saveToGlobalChart();
+        ORIGINAL_TRY_TEST_PLAY();
+    };
+
+    finishGame = function(){
+        const returningToEditor = !!testPlayMode;
+        ORIGINAL_FINISH_GAME();
+        if (returningToEditor && activeScreen === 'editor') {
+            currentNotes = JSON.parse(JSON.stringify(safeLoadChart() || []));
+            currentNotes.sort((a,b) => (Number(a.time)||0) - (Number(b.time)||0));
+            editorScrollSec = Math.max(0, Number(editorReturnState.scrollSec) || 0);
+            pxPerSec = Math.max(80, Math.min(500, Number(editorReturnState.zoom) || 180));
+            const slider = document.getElementById('zoomSlider');
+            if (slider) slider.value = String(pxPerSec);
+            isTrackPlaying = false;
+            isGamePaused = false;
+            keysState.fill(false);
+            resizeEditorCanvas();
+            requestAnimationFrame(renderEditorLoop);
+        }
+    };
+
+    /* Escape/quit during Test Play should also restore the editor viewport and
+       restart the renderer, without changing the original quit behavior. */
+    const ORIGINAL_TRIGGER_QUIT = triggerQuitToSelect;
+    triggerQuitToSelect = function(){
+        const returningToEditor = !!testPlayMode;
+        if (returningToEditor) {
+            editorReturnState.scrollSec = Math.max(0, Number(editorScrollSec) || 0);
+            editorReturnState.zoom = Math.max(80, Math.min(500, Number(pxPerSec) || 180));
+        }
+        ORIGINAL_TRIGGER_QUIT();
+        if (returningToEditor && activeScreen === 'editor') {
+            currentNotes = JSON.parse(JSON.stringify(safeLoadChart() || []));
+            editorScrollSec = Math.max(0, Number(editorReturnState.scrollSec) || 0);
+            pxPerSec = Math.max(80, Math.min(500, Number(editorReturnState.zoom) || 180));
+            const slider = document.getElementById('zoomSlider');
+            if (slider) slider.value = String(pxPerSec);
+            resizeEditorCanvas();
+            requestAnimationFrame(renderEditorLoop);
+        }
+    };
+
+    /* Make editor wheel input useful: normal wheel scrolls time; Ctrl/Alt
+       wheel changes zoom. The old click editing behavior remains untouched. */
+    if (typeof eCanvas !== 'undefined' && eCanvas) {
+        eCanvas.addEventListener('wheel', (e) => {
+            if (activeScreen !== 'editor') return;
+            e.preventDefault();
+            if (e.ctrlKey || e.altKey) {
+                const slider = document.getElementById('zoomSlider');
+                if (!slider) return;
+                const dir = e.deltaY > 0 ? -10 : 10;
+                slider.value = String(Math.max(80, Math.min(500, Number(slider.value || pxPerSec) + dir)));
+                updateZoom();
+            } else {
+                const deltaSec = (e.deltaY > 0 ? 1 : -1) * Math.min(2.5, Math.max(0.15, Math.abs(e.deltaY) / 240));
+                editorScrollSec = Math.max(0, editorScrollSec + deltaSec);
+            }
+        }, { passive: false });
+    }
+
+    /* Keyboard helpers for the editor. Existing Space/D-F-J-K recording and
+       playback are preserved. */
+    window.addEventListener('keydown', (e) => {
+        if (activeScreen !== 'editor') return;
+        if (e.repeat && getKeyMapping()[e.key.toLowerCase()] !== undefined) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+        if (e.key === 'Home') { editorScrollSec = 0; e.preventDefault(); }
+        if (e.key === 'PageUp') { editorScrollSec = Math.max(0, editorScrollSec - 5); e.preventDefault(); }
+        if (e.key === 'PageDown') { editorScrollSec += 5; e.preventDefault(); }
+        if (e.key === '[') { pxPerSec = Math.max(80, pxPerSec - 10); const s=document.getElementById('zoomSlider'); if(s)s.value=String(pxPerSec); e.preventDefault(); }
+        if (e.key === ']') { pxPerSec = Math.min(500, pxPerSec + 10); const s=document.getElementById('zoomSlider'); if(s)s.value=String(pxPerSec); e.preventDefault(); }
+    }, true);
+
+    /* Prevent key-repeat from creating dozens of identical recorded notes.
+       Only the editor-recording path is guarded; gameplay input remains as-is. */
+    const ORIGINAL_TOGGLE_REC_ACTION = toggleRecAction;
+
+    /* Apply the editor defaults as soon as the script has loaded. */
+    applyEditorZoomDefaults();
+
+})();
+
     </script>
 </body>
 </html>
