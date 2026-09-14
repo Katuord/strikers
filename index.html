@@ -2662,5 +2662,158 @@
 })();
 </script>
 
+
+<!-- ================================================================
+     STRIKERS!! v7.2 ADDITIVE RECORDER / EDITOR ENHANCEMENT PATCH
+     Existing code is preserved. This patch overrides/wraps behavior only.
+     ================================================================ -->
+<style>
+#v72-rec-status{margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#8ff;opacity:.85;min-height:14px;text-align:center}
+#v72-rec-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px}
+#v72-rec-tools button{min-height:28px;font-size:8px;padding:4px 5px}
+</style>
+<script>
+(function(){
+    'use strict';
+
+    /* ------------------------------------------------------------
+       REC START = rewind to exactly 0.000s, then start recording.
+       Nothing is cleared: the current chart remains intact.
+       ------------------------------------------------------------ */
+    const V72_ORIGINAL_TOGGLE_REC = toggleRecAction;
+    toggleRecAction = function(){
+        if (!isRecording) {
+            if (typeof stopRecording === 'function' && isRecordingPaused) {
+                try { stopRecording(); } catch(e) {}
+            }
+            editorScrollSec = 0;
+            trackCurrentTime = 0;
+            isRecordingPaused = false;
+            if (scWidget) {
+                try { scWidget.seekTo(0); } catch(e) {}
+                isTrackPlaying = false;
+            }
+            const pauseBtn = document.getElementById('recordPauseBtn');
+            if (pauseBtn) pauseBtn.innerText = '⏸ PAUSE';
+            const status = document.getElementById('v72-rec-status');
+            if (status) status.textContent = 'REC READY • 00:00.000';
+            requestAnimationFrame(function(){
+                try { renderEditor(); } catch(e) {}
+            });
+            /* Original function handles REC state/button/playback. */
+            V72_ORIGINAL_TOGGLE_REC();
+        } else {
+            V72_ORIGINAL_TOGGLE_REC();
+        }
+    };
+
+    /* Keep recording status visually synchronized without replacing the
+       existing time display or renderer. */
+    const V72_ORIGINAL_RENDER_EDITOR = renderEditor;
+    renderEditor = function(){
+        V72_ORIGINAL_RENDER_EDITOR();
+        const status = document.getElementById('v72-rec-status');
+        if (status) {
+            if (isRecordingPaused) status.textContent = 'REC PAUSED • ' + (Number(editorScrollSec)||0).toFixed(3) + 's';
+            else if (isRecording) status.textContent = 'REC • ' + (Number(editorScrollSec)||0).toFixed(3) + 's';
+            else status.textContent = 'READY • ' + (Number(editorScrollSec)||0).toFixed(3) + 's';
+        }
+    };
+
+    /* ------------------------------------------------------------
+       Extra editor conveniences. All are additive.
+       ------------------------------------------------------------ */
+    function v72CurrentTime(){ return Math.max(0, Number(editorScrollSec)||0); }
+    function v72JumpToFirst(){
+        if (!currentNotes || !currentNotes.length) return;
+        editorScrollSec = Math.max(0, Number(currentNotes[0].time)||0);
+    }
+    function v72JumpToLast(){
+        if (!currentNotes || !currentNotes.length) return;
+        const n=currentNotes[currentNotes.length-1];
+        editorScrollSec = Math.max(0, (Number(n.time)||0)-1.0);
+    }
+    function v72AddNoteAtCursor(lane){
+        lane = Math.max(0, Math.min(3, Number(lane)||0));
+        const t = v72CurrentTime();
+        if (typeof v71PushHistory === 'function') v71PushHistory('cursor-add-before');
+        const note={lane:lane,time:Number(t.toFixed(3)),speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur};
+        const dup=(currentNotes||[]).some(n=>Number(n.lane)===lane && Math.abs((Number(n.time)||0)-t)<0.03);
+        if(!dup){
+            currentNotes.push(note);
+            currentNotes.sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0));
+            saveToGlobalChart();
+            if(typeof v71PushHistory==='function') v71PushHistory('cursor-add-after');
+        }
+        if(typeof v71UpdateInfo==='function') v71UpdateInfo();
+    }
+    function v72DeleteSelected(){
+        if (typeof v71SelectedIndex === 'undefined' || v71SelectedIndex<0 || !currentNotes[v71SelectedIndex]) return;
+        if (typeof v71PushHistory === 'function') v71PushHistory('delete-selected-before');
+        currentNotes.splice(v71SelectedIndex,1);
+        v71SelectedIndex=-1;
+        saveToGlobalChart();
+        if(typeof v71PushHistory==='function') v71PushHistory('delete-selected-after');
+        if(typeof v71UpdateInfo==='function') v71UpdateInfo();
+    }
+    function v72DuplicateSelected(){
+        if (typeof v71SelectedIndex === 'undefined' || v71SelectedIndex<0 || !currentNotes[v71SelectedIndex]) return;
+        const src=currentNotes[v71SelectedIndex];
+        const copy=JSON.parse(JSON.stringify(src));
+        copy.time=Number(((Number(src.time)||0)+(Number(gridSnapSec)||0.05)).toFixed(3));
+        if(copy.isLong && copy.endTime!==undefined) copy.endTime=Number(((Number(src.endTime)||0)+(Number(gridSnapSec)||0.05)).toFixed(3));
+        if(typeof v71PushHistory==='function') v71PushHistory('duplicate-before');
+        currentNotes.push(copy);
+        currentNotes.sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0));
+        v71SelectedIndex=currentNotes.indexOf(copy);
+        saveToGlobalChart();
+        if(typeof v71PushHistory==='function') v71PushHistory('duplicate-after');
+        if(typeof v71UpdateInfo==='function') v71UpdateInfo();
+    }
+
+    function v72AddTools(){
+        const groups=document.querySelectorAll('#editor-screen .editor-controls-group');
+        if(!groups.length) return;
+        const recGroup=groups[0];
+        if(!document.getElementById('v72-rec-status')){
+            const st=document.createElement('div'); st.id='v72-rec-status'; st.textContent='READY • 00:00.000'; recGroup.appendChild(st);
+        }
+        const editGroup=groups[Math.min(3,groups.length-1)];
+        if(!document.getElementById('v72-rec-tools')){
+            const wrap=document.createElement('div'); wrap.id='v72-rec-tools';
+            wrap.innerHTML=''
+              +'<button class="editor-btn" id="v72-first">⏮ FIRST</button>'
+              +'<button class="editor-btn" id="v72-last">⏭ LAST</button>'
+              +'<button class="editor-btn" id="v72-delete">✕ DELETE SEL</button>'
+              +'<button class="editor-btn" id="v72-duplicate">⧉ DUPLICATE SEL</button>';
+            editGroup.appendChild(wrap);
+            document.getElementById('v72-first').onclick=v72JumpToFirst;
+            document.getElementById('v72-last').onclick=v72JumpToLast;
+            document.getElementById('v72-delete').onclick=v72DeleteSelected;
+            document.getElementById('v72-duplicate').onclick=v72DuplicateSelected;
+        }
+    }
+
+    /* Keyboard conveniences are guarded so existing gameplay/editor
+       shortcuts continue to work. */
+    window.addEventListener('keydown',function(e){
+        if(activeScreen!=='editor') return;
+        if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+        if(e.key==='Delete' || e.key==='Backspace'){
+            if(typeof v71SelectedIndex!=='undefined' && v71SelectedIndex>=0){ e.preventDefault(); v72DeleteSelected(); }
+        } else if(e.key==='F1'){
+            e.preventDefault(); v72JumpToFirst();
+        } else if(e.key==='F2'){
+            e.preventDefault(); v72JumpToLast();
+        } else if(e.altKey && e.key.toLowerCase()==='d'){
+            e.preventDefault(); v72DuplicateSelected();
+        }
+    },true);
+
+    document.addEventListener('DOMContentLoaded',function(){ setTimeout(v72AddTools,50); });
+    setTimeout(v72AddTools,100);
+})();
+</script>
+
 </body>
 </html>
