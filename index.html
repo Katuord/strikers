@@ -203,18 +203,78 @@
         #sc-hidden-container { position: absolute; top: -9999px; left: -9999px; visibility: hidden; }
         #flash-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background:#fff; opacity:0; pointer-events:none; z-index:9000; transition: opacity 0.15s; display:none; }
         
-        /* RAINBOW & EQUINOX EFFECTS (調整版) */
-        @keyframes rainbowGlow {
-            0% { background-position: 0% 50%; filter: hue-rotate(0deg); opacity: 0; }
-            15% { opacity: 0.85; }
-            85% { opacity: 0.85; }
-            100% { background-position: 200% 50%; filter: hue-rotate(720deg); opacity: 0; }
+        /* =========================================================
+           RAINBOW, EQUINOX, NEW FX ANIMATIONS
+           ========================================================= */
+        /* Rainbow: 回転なし・超高速色変化 */
+        #rainbow-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none;
+            background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000);
+            background-size: 400% 400%; mix-blend-mode: screen;
         }
-        @keyframes equinoxSpin {
-            0% { transform: translate(-25%, -25%) rotate(0deg) scale(1); opacity: 0; }
-            10% { opacity: 0.5; transform: translate(-25%, -25%) rotate(90deg) scale(1.1); }
-            90% { opacity: 0.5; transform: translate(-25%, -25%) rotate(1350deg) scale(1.1); }
-            100% { transform: translate(-25%, -25%) rotate(1440deg) scale(1); opacity: 0; }
+        @keyframes rainbowGlowNoRotate {
+            0% { background-position: 0% 50%; filter: hue-rotate(0deg); opacity: 0; }
+            10% { opacity: 0.9; }
+            50% { background-position: 200% 50%; filter: hue-rotate(1800deg); opacity: 0.9; }
+            90% { opacity: 0.9; }
+            100% { background-position: 400% 50%; filter: hue-rotate(3600deg); opacity: 0; }
+        }
+
+        /* Equinox: 白色の角を強調・爆速回転・0.35秒周期白黒反転 */
+        #equinox-overlay {
+            position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vw;
+            margin-top: -75vw; margin-left: -75vw; pointer-events:none; z-index:8500; opacity:0; display:none;
+            background: repeating-conic-gradient(#000000 0deg 45deg, #ffffff 45deg 90deg);
+            border: 40px solid #ffffff;
+            box-shadow: 0 0 80px #ffffff, inset 0 0 80px #ffffff;
+            mix-blend-mode: difference;
+        }
+        @keyframes equinoxSpinFast {
+            0% { transform: rotate(0deg) scale(0.9); opacity: 0; }
+            10% { opacity: 0.85; }
+            90% { opacity: 0.85; }
+            100% { transform: rotate(2880deg) scale(1.2); opacity: 0; }
+        }
+        @keyframes equinoxInvertSwap {
+            0%, 49.9% { filter: invert(0); }
+            50%, 100% { filter: invert(1); }
+        }
+
+        /* NEW VISUAL EFFECTS */
+        #glitch-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8600; opacity:0; display:none;
+            background: repeating-linear-gradient(0deg, rgba(0,240,255,0.3) 0px, transparent 2px, rgba(255,0,85,0.3) 4px);
+            mix-blend-mode: color-dodge;
+        }
+        @keyframes glitchOverlayAnim {
+            0% { opacity: 0.8; transform: translate(0, 0) scale(1); filter: hue-rotate(0deg); }
+            20% { transform: translate(-10px, 8px) scale(1.05); }
+            40% { transform: translate(12px, -6px) filter: hue-rotate(90deg); }
+            60% { transform: translate(-8px, -8px) scale(0.98); }
+            80% { transform: translate(6px, 10px) filter: hue-rotate(180deg); }
+            100% { opacity: 0; transform: translate(0, 0) scale(1); }
+        }
+
+        #hyperdrive-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8700; opacity:0; display:none;
+            background: radial-gradient(circle at 50% 50%, #ffffff 0%, rgba(0,240,255,0.8) 20%, transparent 70%);
+            mix-blend-mode: overlay;
+        }
+        @keyframes hyperdriveAnim {
+            0% { opacity: 0; transform: scale(0.2); }
+            20% { opacity: 1; transform: scale(1.5); }
+            80% { opacity: 1; transform: scale(2.2); }
+            100% { opacity: 0; transform: scale(3.0); }
+        }
+
+        #strobe-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8800; opacity:0; display:none;
+            background: #ffffff; mix-blend-mode: difference;
+        }
+        @keyframes strobeAnim {
+            0%, 100% { opacity: 0; }
+            10%, 30%, 50%, 70%, 90% { opacity: 0.9; }
+            20%, 40%, 60%, 80% { opacity: 0.1; }
         }
 
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
@@ -226,9 +286,12 @@
 
     <div id="flash-overlay"></div>
     
-    <!-- EFFECT OVERLAYS (Rainbow & Equinox 調整) -->
-    <div id="rainbow-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none; background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000); background-size: 300% 300%; mix-blend-mode: screen;"></div>
-    <div id="equinox-overlay" style="position:fixed; top:0; left:0; width:200vw; height:200vh; transform: translate(-25%, -25%); pointer-events:none; z-index:8500; opacity:0; display:none; background: linear-gradient(90deg, rgba(0,0,0,0.5) 50%, rgba(255,255,255,0.5) 50%); mix-blend-mode: normal;"></div>
+    <!-- EFFECT OVERLAYS (Rainbow, Equinox, Glitch, Hyperdrive, Strobe) -->
+    <div id="rainbow-overlay"></div>
+    <div id="equinox-overlay"></div>
+    <div id="glitch-overlay"></div>
+    <div id="hyperdrive-overlay"></div>
+    <div id="strobe-overlay"></div>
 
     <div id="account-register-modal" class="modal-base">
         <div class="modal-box">
@@ -371,11 +434,14 @@
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
                     <span style="font-size:10px; color:#aaa;">EFFECT:</span>
-                    <select id="editEffectType" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
+                    <select id="editEffectType" class="cyber-select" style="width:100px;" onchange="updateNoteFx()">
                         <option value="none">NONE</option>
                         <option value="rainbow">RAINBOW</option>
                         <option value="equinox">EQUINOX</option>
                         <option value="shake">SHAKE</option>
+                        <option value="glitch">GLITCH</option>
+                        <option value="hyperdrive">HYPER</option>
+                        <option value="strobe">STROBE</option>
                     </select>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
@@ -555,7 +621,6 @@
                         <option value="diamond">Diamond</option>
                     </select>
                 </div>
-                <!-- バックアップ用ボタン -->
                 <div class="backup-section" style="margin: 10px 0; display:flex; gap:8px;">
                     <button class="sys-btn" style="flex:1;" onclick="exportSaveData()">データ保存</button>
                     <input type="file" id="importSaveData" accept=".json" onchange="importSaveData(event)" style="display:none;">
@@ -603,11 +668,12 @@
             <div class="modal-title" style="color: var(--accent-neon);">UPDATE LOG</div>
             <div style="color: #ccc; font-size: 13px; line-height: 1.8; max-height: 260px; overflow-y: auto; padding-right:6px;">
                 <p><strong>v7.0.0 "Cyber Core Engine Overload"</strong><br>
+                - Rainbow/Equinoxエフェクトの演出大幅アップデート。<br>
+                - 新規エフェクト（Glitch, Hyper, Strobe）の追加。<br>
                 - Retina/高DPIディスプレイ自動Canvasスケーリング機能の実装。<br>
                 - キーボード連続打鍵の判定ロジック最適化と低入力遅延化。<br>
                 - ミリ秒単位のEARLY / LATE精度判定を追加。<br>
-                - 譜面データの構文不備の全自動補正とフォールバック処理の実装。<br>
-                - サイバーUIのブラッシュアップとレスポンシブ最適化。</p>
+                - 譜面データの構文不備の全自動補正とフォールバック処理の実装。</p>
             </div>
             <button class="action-btn" style="background: #fff; color: #000; height: 40px; margin-top:10px;" onclick="document.getElementById('update-modal').classList.remove('show')">CLOSE</button>
         </div>
@@ -627,7 +693,7 @@
         <iframe id="sc-player" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&amp;auto_play=false" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay"></iframe>
     </div>
 
-   <!-- 分離した譜面データをここで読み込む -->
+    <!-- 外部譜面データの読み込み -->
     <script src="Musicdata1.js"></script>
     <script src="Musicdata2.js" onerror="this.onerror=null; console.log('Musicdata2.js is not loaded or missing.');"></script>
     <script src="Musicdata3.js" onerror="this.onerror=null; console.log('Musicdata3.js is not loaded or missing.');"></script>
@@ -698,6 +764,9 @@
         let rainbowTimer = null;
         let equinoxTimer = null;
         let shakeTimer = null;
+        let glitchTimer = null;
+        let hyperdriveTimer = null;
+        let strobeTimer = null;
 
         window.addEventListener('blur', () => {
             keysState.fill(false);
@@ -906,18 +975,30 @@
         }
 
         // ==========================================
-        // エフェクトの完全リセット関数
+        // エフェクト リセット関数
         // ==========================================
         function resetVisualEffects() {
             if (rainbowTimer) clearTimeout(rainbowTimer);
             if (equinoxTimer) clearTimeout(equinoxTimer);
             if (shakeTimer) clearTimeout(shakeTimer);
+            if (glitchTimer) clearTimeout(glitchTimer);
+            if (hyperdriveTimer) clearTimeout(hyperdriveTimer);
+            if (strobeTimer) clearTimeout(strobeTimer);
 
             const rb = document.getElementById('rainbow-overlay');
             if (rb) { rb.style.display = 'none'; rb.style.animation = ''; }
 
             const eq = document.getElementById('equinox-overlay');
             if (eq) { eq.style.display = 'none'; eq.style.animation = ''; }
+
+            const gl = document.getElementById('glitch-overlay');
+            if (gl) { gl.style.display = 'none'; gl.style.animation = ''; }
+
+            const hd = document.getElementById('hyperdrive-overlay');
+            if (hd) { hd.style.display = 'none'; hd.style.animation = ''; }
+
+            const st = document.getElementById('strobe-overlay');
+            if (st) { st.style.display = 'none'; st.style.animation = ''; }
 
             const wrapper = document.getElementById('game-wrapper-box');
             if (wrapper) { wrapper.style.animation = ''; wrapper.style.transform = 'translate(0,0)'; }
@@ -1206,7 +1287,7 @@
             }
         }
         
-        // 虹色・Equinox・シェイクのトリガー関数 (修正)
+        // 演出トリガー関数（Rainbow・Equinox・Shake・新規エフェクト）
         function triggerRainbowEffect(duration) {
             const el = document.getElementById('rainbow-overlay');
             if(el) {
@@ -1214,7 +1295,7 @@
                 el.style.display = 'block';
                 el.style.animation = 'none';
                 void el.offsetWidth;
-                el.style.animation = `rainbowGlow ${duration}s linear forwards`;
+                el.style.animation = `rainbowGlowNoRotate ${duration}s linear forwards`;
                 rainbowTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
         }
@@ -1226,7 +1307,8 @@
                 el.style.display = 'block';
                 el.style.animation = 'none';
                 void el.offsetWidth;
-                el.style.animation = `equinoxSpin ${duration}s linear forwards`;
+                // 高速回転 ＋ 0.35秒周期の白黒反転（0.7秒アニメーションを無限リピート）
+                el.style.animation = `equinoxSpinFast ${duration}s linear forwards, equinoxInvertSwap 0.70s steps(1) infinite`;
                 equinoxTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
         }
@@ -1238,6 +1320,42 @@
                 if (shakeTimer) clearTimeout(shakeTimer);
                 el.style.animation = `shakeAnim 0.08s linear infinite`;
                 shakeTimer = setTimeout(() => { el.style.animation = ''; el.style.transform = 'translate(0,0)'; }, duration * 1000);
+            }
+        }
+
+        function triggerGlitchEffect(duration) {
+            const el = document.getElementById('glitch-overlay');
+            if(el) {
+                if (glitchTimer) clearTimeout(glitchTimer);
+                el.style.display = 'block';
+                el.style.animation = 'none';
+                void el.offsetWidth;
+                el.style.animation = `glitchOverlayAnim ${duration}s linear forwards`;
+                glitchTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+            }
+        }
+
+        function triggerHyperdriveEffect(duration) {
+            const el = document.getElementById('hyperdrive-overlay');
+            if(el) {
+                if (hyperdriveTimer) clearTimeout(hyperdriveTimer);
+                el.style.display = 'block';
+                el.style.animation = 'none';
+                void el.offsetWidth;
+                el.style.animation = `hyperdriveAnim ${duration}s ease-out forwards`;
+                hyperdriveTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+            }
+        }
+
+        function triggerStrobeEffect(duration) {
+            const el = document.getElementById('strobe-overlay');
+            if(el) {
+                if (strobeTimer) clearTimeout(strobeTimer);
+                el.style.display = 'block';
+                el.style.animation = 'none';
+                void el.offsetWidth;
+                el.style.animation = `strobeAnim ${duration}s linear forwards`;
+                strobeTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
         }
 
@@ -1310,6 +1428,9 @@
                     if (note.effect === 'rainbow') triggerRainbowEffect(note.effectDuration || 2);
                     if (note.effect === 'equinox') triggerEquinoxEffect(note.effectDuration || 2);
                     if (note.effect === 'shake') triggerSustainedShake(note.effectDuration || 2);
+                    if (note.effect === 'glitch') triggerGlitchEffect(note.effectDuration || 2);
+                    if (note.effect === 'hyperdrive') triggerHyperdriveEffect(note.effectDuration || 2);
+                    if (note.effect === 'strobe') triggerStrobeEffect(note.effectDuration || 2);
                 }
 
                 if (isAutoPlay) {
@@ -1551,7 +1672,6 @@
 
             const laneW = 75; const offsetX = Math.max((rect.width - (laneW*4)) / 2, 40); const currentLineY = rect.height - 120;
 
-            // Hand placement guide in editor
             if (showHandGuide) {
                 eCtx.fillStyle = 'rgba(255, 255, 255, 0.05)';
                 eCtx.fillRect(offsetX, currentLineY - 20, laneW * 4, 150);
@@ -1698,159 +1818,162 @@
             userProfile.theme = document.getElementById('theme-select').value;
             userProfile.noteSkin = document.getElementById('noteskin-select').value;
             userProfile.bgAnim = document.getElementById('bganim-select').value === 'on';
-            
+            audioOffset = parseFloat(document.getElementById('offset-input').value) || 0;
             userProfile.mirror = document.getElementById('mirror-select').value;
             userProfile.random = document.getElementById('random-select').value;
             userProfile.showEarlyLate = document.getElementById('earlylate-select').value;
             userProfile.laneCover = document.getElementById('lanecover-select').value;
             userProfile.enableShake = document.getElementById('shake-select').value;
             userProfile.enableFlash = document.getElementById('flash-select').value;
-
-            audioOffset = parseFloat(document.getElementById('offset-input').value) || 0.00;
-            
-            saveProfileToLocal(); applyProfileUI(); applyTheme(userProfile.theme); toggleBgAnim(userProfile.bgAnim);
-            document.getElementById('settings-modal').classList.remove('show'); 
+            saveProfileToLocal();
+            applyProfileUI();
+            applyTheme(userProfile.theme);
+            document.getElementById('settings-modal').classList.remove('show');
         }
 
         function buildSpeedControls() {
-            const container = document.getElementById('speed-controls'); container.innerHTML = "";
-            [1.0, 2.0, 3.0, 4.0, 5.0].forEach(spd => {
-                const btn = document.createElement('button'); btn.className = `sys-btn ${systemNoteSpeed === spd ? 'active' : ''}`;
-                if(systemNoteSpeed === spd) { btn.style.background = '#fff'; btn.style.color = '#000'; }
-                btn.innerText = spd.toFixed(1) + "x"; btn.onclick = () => { systemNoteSpeed = spd; buildSpeedControls(); }; container.appendChild(btn);
+            const container = document.getElementById('speed-controls');
+            if(!container) return;
+            container.innerHTML = '';
+            const speeds = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+            speeds.forEach(sp => {
+                const btn = document.createElement('button');
+                btn.className = `diff-btn ${systemNoteSpeed === sp ? 'active' : ''}`;
+                btn.style.padding = '4px 6px'; btn.style.fontSize = '9px';
+                btn.innerText = sp.toFixed(1) + 'x';
+                btn.onclick = () => { systemNoteSpeed = sp; buildSpeedControls(); };
+                container.appendChild(btn);
             });
         }
 
-        let bindingLane = -1;
-        function startKeyBind(lane) { bindingLane = lane; updateKeyBindUI(); }
+        let keyBindingIndex = -1;
+        function startKeyBind(index) {
+            keyBindingIndex = index;
+            document.querySelectorAll('.key-bind-btn').forEach(b => b.classList.remove('waiting'));
+            const btn = document.getElementById(`key-bind-${index}`);
+            if(btn) { btn.classList.add('waiting'); btn.innerText = 'PRESS...'; }
+        }
+
         function updateKeyBindUI() {
             for(let i=0; i<4; i++) {
                 const btn = document.getElementById(`key-bind-${i}`);
-                if(btn) {
-                    if(bindingLane === i) { btn.innerText = "WAIT"; btn.classList.add('waiting'); }
-                    else { btn.innerText = userKeys[i].toUpperCase(); btn.classList.remove('waiting'); }
-                }
+                if(btn) btn.innerText = (userKeys[i] || '').toUpperCase();
             }
         }
 
-        function engineLoop() {
-            const now = performance.now(); const delta = (now - lastFrameTimestamp) / 1000; lastFrameTimestamp = now;
+        function engineLoop(timestamp) {
+            let dt = (timestamp - lastFrameTimestamp) / 1000;
+            lastFrameTimestamp = timestamp;
 
-            if(isTrackPlaying && !isGamePaused) {
-                let prevEdTime = editorScrollSec;
-                if(activeScreen === 'game') trackCurrentTime += delta;
-                if(activeScreen === 'editor') editorScrollSec += delta; 
+            if (isTrackPlaying && scWidget && !isGamePaused) {
+                trackCurrentTime += dt;
+            }
 
-                if (activeScreen === 'editor' && isAssistTick) {
-                    let hitTick = false;
-                    currentNotes.forEach(note => { if (note.time > prevEdTime && note.time <= editorScrollSec) hitTick = true; });
-                    if (hitTick) playTickSound();
+            if (activeScreen === 'game') {
+                renderGame();
+                requestAnimationFrame(engineLoop);
+            } else if (activeScreen === 'editor') {
+                if (isTrackPlaying && !isRecordingPaused) {
+                    editorScrollSec = trackCurrentTime;
+                    document.getElementById('editorTimeDisp').innerText = formatTime(editorScrollSec);
                 }
+                renderEditor();
+                requestAnimationFrame(engineLoop);
             }
-
-            const timeDisp = document.getElementById('editorTimeDisp');
-            if (timeDisp && activeScreen === 'editor') {
-                const m = Math.floor(editorScrollSec / 60).toString().padStart(2, '0');
-                const s = (editorScrollSec % 60).toFixed(2).padStart(5, '0');
-                timeDisp.innerText = `${m}:${s}`;
-            }
-
-            if (activeScreen === 'game') renderGame();
-            if (activeScreen === 'editor') renderEditor();
-            requestAnimationFrame(engineLoop);
         }
 
-        // キーボード入力処理のバインド
+        function formatTime(sec) {
+            let m = Math.floor(sec / 60);
+            let s = sec % 60;
+            return String(m).padStart(2,'0') + ":" + s.toFixed(2).padStart(5,'0');
+        }
+
         window.addEventListener('keydown', (e) => {
-            if (bindingLane !== -1) {
+            if (keyBindingIndex !== -1) {
                 const key = e.key.toLowerCase();
-                userKeys[bindingLane] = key;
-                bindingLane = -1;
+                if (key !== 'escape') {
+                    userKeys[keyBindingIndex] = key;
+                    userProfile.keys = userKeys;
+                    saveProfileToLocal();
+                }
+                keyBindingIndex = -1;
                 updateKeyBindUI();
-                saveProfileToLocal();
                 return;
             }
 
             if (e.key === 'Escape') {
-                if (activeScreen === 'game') triggerQuitToSelect();
-                if (activeScreen === 'editor') triggerQuitToSelect();
+                if (activeScreen === 'game') toggleGamePause();
+                else if (activeScreen === 'editor') triggerQuitToSelect();
                 return;
             }
 
             if (e.key === 'Enter') {
-                if (activeScreen === 'game') toggleGamePause();
-                return;
+                if (activeScreen === 'game' && isGamePaused) {
+                    toggleGamePause();
+                    return;
+                }
             }
 
-            if (activeScreen === 'editor' && e.code === 'Space') {
-                e.preventDefault();
-                toggleEditorAudio();
-                return;
+            if (activeScreen === 'game' && !isGamePaused) {
+                if (e.key === '+' || e.key === '=') { systemNoteSpeed = Math.min(6.0, systemNoteSpeed + 0.2); return; }
+                if (e.key === '-' || e.key === '_') { systemNoteSpeed = Math.max(0.5, systemNoteSpeed - 0.2); return; }
             }
 
             const mapping = getKeyMapping();
-            const lane = mapping[e.key.toLowerCase()];
-            if (lane !== undefined && !keysState[lane]) {
-                keysState[lane] = true;
-                if (activeScreen === 'game' && !isGamePaused) {
-                    executeHitJudgment(lane);
+            const key = e.key.toLowerCase();
+
+            if (key in mapping) {
+                const lane = mapping[key];
+                if (!keysState[lane]) {
+                    keysState[lane] = true;
+                    if (isAssistTick) playTickSound();
+                    
+                    if (activeScreen === 'game' && !isGamePaused && !isAutoPlay) {
+                        executeHitJudgment(lane);
+                    } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                        recordingNotes[lane] = { time: Math.round(editorScrollSec * 20) / 20, lane: lane, speedMult: currentNoteSpeedMult, effect: currentNoteEffect, effectDuration: currentNoteEffectDur };
+                        currentNotes.push(recordingNotes[lane]);
+                    }
                 }
-                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
-                    let snapTime = Math.round(editorScrollSec / gridSnapSec) * gridSnapSec;
-                    let newNote = {
-                        time: snapTime,
-                        lane: lane,
-                        speedMult: currentNoteSpeedMult,
-                        effect: currentNoteEffect,
-                        effectDuration: currentNoteEffectDur
-                    };
-                    recordingNotes[lane] = newNote;
-                    currentNotes.push(newNote);
-                }
+            }
+
+            if (e.code === 'Space' && activeScreen === 'editor') {
+                e.preventDefault();
+                toggleEditorAudio();
             }
         });
 
         window.addEventListener('keyup', (e) => {
             const mapping = getKeyMapping();
-            const lane = mapping[e.key.toLowerCase()];
-            if (lane !== undefined) {
+            const key = e.key.toLowerCase();
+            if (key in mapping) {
+                const lane = mapping[key];
                 keysState[lane] = false;
-                if (activeScreen === 'game' && !isGamePaused) {
+                if (activeScreen === 'game' && !isGamePaused && !isAutoPlay) {
                     executeReleaseJudgment(lane);
-                }
-                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
                     finalizeRecordingNote(lane);
                 }
             }
         });
 
-        // ==========================================
-        // 初期化 & APIイベントバインド
-        // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
-            if (window.songList2) window.songList = window.songList.concat(window.songList2);
-            if (window.songList3) window.songList = window.songList.concat(window.songList3);
-            if (window.songList4) window.songList = window.songList.concat(window.songList4);
-            if (window.songList5) window.songList = window.songList.concat(window.songList5);
-
             initAccountSystem();
             
             const iframe = document.getElementById('sc-player');
-            if (iframe && typeof SC !== 'undefined' && SC.Widget) {
-                try {
-                    scWidget = SC.Widget(iframe);
-                    scWidget.bind(SC.Widget.Events.READY, () => {
-                        scWidget.setVolume(masterVolume);
-                        if (window.songList && window.songList.length > 0) selectSong(0);
-                    });
-                    scWidget.bind(SC.Widget.Events.PLAY_PROGRESS, (data) => {
-                        if (isTrackPlaying && !isGamePaused) {
-                            let sec = data.currentPosition / 1000;
-                            if (activeScreen === 'game') trackCurrentTime = sec;
-                            if (activeScreen === 'editor' && isTrackPlaying) editorScrollSec = sec;
-                        }
-                    });
-                } catch(e) {}
+            if (iframe && window.SC) {
+                scWidget = SC.Widget(iframe);
+                scWidget.bind(SC.Widget.Events.READY, () => {
+                    scWidget.setVolume(masterVolume);
+                    if (window.songList && window.songList.length > 0) {
+                        selectSong(0);
+                    }
+                });
+                scWidget.bind(SC.Widget.Events.FINISH, () => {
+                    if (activeScreen === 'game') finishGame();
+                });
+            } else {
+                buildSongList();
             }
         });
     </script>
