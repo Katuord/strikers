@@ -84,6 +84,15 @@
 
         .game-flipped { transform: rotate(180deg); }
         .game-wrapper { position: relative; width: 520px; max-width: 100vw; height: 100vh; background: rgba(0,2,10,0.85); border-left: 2px solid var(--border-line); border-right: 2px solid var(--border-line); overflow: hidden; transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); box-shadow: 0 0 50px rgba(0,240,255,0.1); }
+        
+        /* SHAKE ANIMATION */
+        @keyframes shakeAnim {
+            0% { transform: translate(12px, 12px); }
+            25% { transform: translate(-12px, -12px); }
+            50% { transform: translate(12px, -12px); }
+            75% { transform: translate(-12px, 12px); }
+            100% { transform: translate(0, 0); }
+        }
 
         .editor-time-display { font-size: 22px; font-weight: 900; font-family: 'Press Start 2P', monospace; color: var(--accent-neon); text-shadow: 0 0 15px var(--accent-neon); text-align: center; border-bottom: 2px dashed rgba(0,240,255,0.3); padding-bottom: 10px; margin-bottom: 15px; }
         .editor-controls-group { display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); }
@@ -194,6 +203,20 @@
         #sc-hidden-container { position: absolute; top: -9999px; left: -9999px; visibility: hidden; }
         #flash-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background:#fff; opacity:0; pointer-events:none; z-index:9000; transition: opacity 0.15s; display:none; }
         
+        /* RAINBOW & EQUINOX EFFECTS */
+        @keyframes rainbowGlow {
+            0% { background-position: 0% 50%; opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { background-position: 100% 50%; opacity: 0; }
+        }
+        @keyframes equinoxSpin {
+            0% { transform: translate(-25%, -25%) rotate(0deg) scale(1); opacity: 0; }
+            10% { opacity: 0.8; transform: translate(-25%, -25%) rotate(10deg) scale(1.1); }
+            90% { opacity: 0.8; transform: translate(-25%, -25%) rotate(350deg) scale(1.1); }
+            100% { transform: translate(-25%, -25%) rotate(360deg) scale(1); opacity: 0; }
+        }
+
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; background: var(--accent-neon); cursor: pointer; margin-top: -6px; border-radius: 2px; box-shadow: 0 0 8px var(--accent-neon); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #222; border-radius: 2px; }
@@ -202,6 +225,10 @@
 <body>
 
     <div id="flash-overlay"></div>
+    
+    <!-- EFFECT OVERLAYS -->
+    <div id="rainbow-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none; background: linear-gradient(45deg, red, yellow, lime, cyan, blue, magenta, red); background-size: 400% 400%; mix-blend-mode: overlay;"></div>
+    <div id="equinox-overlay" style="position:fixed; top:0; left:0; width:200vw; height:200vh; transform: translate(-25%, -25%); pointer-events:none; z-index:8500; opacity:0; display:none; background: linear-gradient(90deg, rgba(0,0,0,0.9) 50%, rgba(255,255,255,0.9) 50%); mix-blend-mode: normal;"></div>
 
     <div id="account-register-modal" class="modal-base">
         <div class="modal-box">
@@ -333,6 +360,29 @@
                     <button class="editor-btn" id="recordBtn" style="flex:1;" onclick="toggleRecAction()">🔴 REC START</button>
                     <button class="editor-btn" id="recordPauseBtn" style="flex:1; display:none;" onclick="pauseResumeRecording()">⏸ PAUSE</button>
                 </div>
+            </div>
+
+            <!-- EFFECT CONTROLS -->
+            <div class="editor-controls-group">
+                <div style="font-size:9px; color:#ff0055; font-family: 'Press Start 2P'; margin-bottom: 4px;">✨ NOTE FX & SPEED</div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:10px; color:#aaa;">SPEED x:</span>
+                    <input type="number" id="editSpeedMult" value="1.0" step="0.1" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                    <span style="font-size:10px; color:#aaa;">EFFECT:</span>
+                    <select id="editEffectType" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
+                        <option value="none">NONE</option>
+                        <option value="rainbow">RAINBOW</option>
+                        <option value="equinox">EQUINOX</option>
+                        <option value="shake">SHAKE</option>
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                    <span style="font-size:10px; color:#aaa;">DUR(s):</span>
+                    <input type="number" id="editEffectDur" value="2.0" step="0.5" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
+                </div>
+                <button class="editor-btn" onclick="toggleHandGuide()" style="margin-top: 8px; border-color: #00ff88; color: #00ff88;">✋ HAND PLACEMENT</button>
             </div>
 
             <div class="editor-controls-group">
@@ -593,12 +643,25 @@
         // ==========================================
         let gridSnapSec = 0.05;
         let pxPerSec = 400; 
+        
+        let currentNoteSpeedMult = 1.0;
+        let currentNoteEffect = 'none';
+        let currentNoteEffectDur = 2.0;
+        let showHandGuide = false;
 
         function updateSnap() { gridSnapSec = parseFloat(document.getElementById('gridSnapSelect').value) || 0; }
         function updateZoom() { pxPerSec = parseInt(document.getElementById('zoomSlider').value) || 400; resizeEditorCanvas(); }
+        function updateNoteFx() {
+            currentNoteSpeedMult = parseFloat(document.getElementById('editSpeedMult').value) || 1.0;
+            currentNoteEffect = document.getElementById('editEffectType').value;
+            currentNoteEffectDur = parseFloat(document.getElementById('editEffectDur').value) || 2.0;
+        }
+        function toggleHandGuide() {
+            showHandGuide = !showHandGuide;
+        }
 
         let currentSongIndex = 0; 
-        let currentSong = window.songList[0];
+        let currentSong = window.songList ? window.songList[0] : null;
         let currentDiff = 'normal'; 
         let currentNotes = [];
         let activeScreen = 'title';
@@ -709,7 +772,6 @@
         };
 
         function initAccountSystem() {
-            //--const data = localStorage.setItem('Strikers_Save_v7', null);
             const saved = localStorage.getItem('Strikers_Save_v7') || localStorage.getItem('Strikers_Save');
             if (saved) {
                 try { 
@@ -1001,7 +1063,7 @@
                 currentNotes.forEach(n => { if (n.lane !== undefined) n.lane = randMap[n.lane]; });
             }
 
-            currentNotes.forEach(n => { n.hit = false; n.missed = false; n.isHolding = false; n.hitEnd = false; n.played = false; });
+            currentNotes.forEach(n => { n.hit = false; n.missed = false; n.isHolding = false; n.hitEnd = false; n.played = false; n.effectTriggered = false; });
 
             gameScore = 0; gameCombo = 0; maxCombo = 0; grooveGauge = 80;
             countPerf = 0; countGreat = 0; countGood = 0; countMiss = 0;
@@ -1078,6 +1140,34 @@
                 setTimeout(() => gameScreen.style.transform = "translate(0, 0)", 80);
             }
         }
+        
+        // NEW EFFECTS TRIGGER FUNCTIONS
+        function triggerRainbowEffect(duration) {
+            const el = document.getElementById('rainbow-overlay');
+            if(el) {
+                el.style.display = 'block';
+                el.style.animation = `rainbowGlow ${duration}s linear forwards`;
+                setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+            }
+        }
+        
+        function triggerEquinoxEffect(duration) {
+            const el = document.getElementById('equinox-overlay');
+            if(el) {
+                el.style.display = 'block';
+                el.style.animation = `equinoxSpin ${duration}s ease-in-out forwards`;
+                setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+            }
+        }
+        
+        function triggerSustainedShake(duration) {
+            if (userProfile.enableShake === 'off') return;
+            const el = document.getElementById('game-wrapper-box');
+            if(el) {
+                el.style.animation = `shakeAnim 0.1s linear infinite`;
+                setTimeout(() => { el.style.animation = ''; }, duration * 1000);
+            }
+        }
 
         function getJudgeY() { return userProfile.judgePosition || 580; }
 
@@ -1141,6 +1231,14 @@
             currentNotes.forEach(note => {
                 let rem = note.time - trackCurrentTime + audioOffset;
                 if (rem > -0.2 && !note.hitEnd && (!note.hit || note.isLong)) notesRemaining = true;
+                
+                // Effect trigger logic
+                if (rem <= 0 && !note.effectTriggered) {
+                    note.effectTriggered = true;
+                    if (note.effect === 'rainbow') triggerRainbowEffect(note.effectDuration || 2);
+                    if (note.effect === 'equinox') triggerEquinoxEffect(note.effectDuration || 2);
+                    if (note.effect === 'shake') triggerSustainedShake(note.effectDuration || 2);
+                }
 
                 if (isAutoPlay) {
                     if (!note.hit && rem <= 0) {
@@ -1155,12 +1253,15 @@
                 }
 
                 let x = note.lane * laneW;
+                
+                let spdMult = note.speedMult || 1.0;
+                let adjustedWindow = noteTimeWindow / spdMult;
 
                 if(note.isLong && !note.hitEnd && note.endTime !== undefined) {
                     let remEnd = note.endTime - trackCurrentTime + audioOffset;
-                    if ((rem <= noteTimeWindow && remEnd > -0.2) || note.isHolding) {
-                        let yStart = note.isHolding ? judgeY : judgeY - (rem / noteTimeWindow) * judgeY;
-                        let yEnd = judgeY - (remEnd / noteTimeWindow) * judgeY;
+                    if ((rem <= adjustedWindow && remEnd > -0.2) || note.isHolding) {
+                        let yStart = note.isHolding ? judgeY : judgeY - (rem / adjustedWindow) * judgeY;
+                        let yEnd = judgeY - (remEnd / adjustedWindow) * judgeY;
                         drawNoteSkin(x + 12, yEnd, laneW - 24, yStart - yEnd, note.lane, true);
                         if (note.isHolding && !isGamePaused) {
                             if(!isAutoPlay) gameScore += 8;
@@ -1169,8 +1270,8 @@
                     }
                 }
 
-                if(rem <= noteTimeWindow && rem > -0.2 && !note.hit) {
-                    let y = judgeY - (rem / noteTimeWindow) * judgeY;
+                if(rem <= adjustedWindow && rem > -0.2 && !note.hit) {
+                    let y = judgeY - (rem / adjustedWindow) * judgeY;
                     drawNoteSkin(x + 4, y - 8, laneW - 8, 16, note.lane, false);
                 }
                 
@@ -1311,20 +1412,18 @@
         // ==========================================
         // 譜面エディタ
         // ==========================================
-function startEditor() {
-    initAudio(); currentNotes = safeLoadChart(); editorScrollSec = 0; changeScreen('editor'); 
-    if(scWidget) { 
-        scWidget.setVolume(masterVolume);
-        scWidget.seekTo(0); 
-        scWidget.pause(); 
-        document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE"; 
-    }
-    isTrackPlaying = false;
-
-    // --- 以下の2行を追加 ---
-    lastFrameTimestamp = performance.now();
-    requestAnimationFrame(engineLoop);
-}
+        function startEditor() {
+            initAudio(); currentNotes = safeLoadChart(); editorScrollSec = 0; changeScreen('editor'); 
+            if(scWidget) { 
+                scWidget.setVolume(masterVolume);
+                scWidget.seekTo(0); 
+                scWidget.pause(); 
+                document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE"; 
+            }
+            isTrackPlaying = false;
+            lastFrameTimestamp = performance.now();
+            requestAnimationFrame(engineLoop);
+        }
 
         function toggleRecAction() { initAudio(); if (!isRecording) startRecordingFromZero(); else stopRecording(); }
 
@@ -1380,6 +1479,24 @@ function startEditor() {
 
             const laneW = 75; const offsetX = Math.max((rect.width - (laneW*4)) / 2, 40); const currentLineY = rect.height - 120;
 
+            // Hand placement guide in editor
+            if (showHandGuide) {
+                eCtx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                eCtx.fillRect(offsetX, currentLineY - 20, laneW * 4, 150);
+                eCtx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+                eCtx.strokeRect(offsetX, currentLineY - 20, laneW * 4, 150);
+                eCtx.fillStyle = 'rgba(0, 240, 255, 0.5)';
+                eCtx.font = '10px "Press Start 2P"';
+                eCtx.fillText("✋ HAND PLACEMENT GUIDE ✋", offsetX + laneW*2 - 110, currentLineY + 60);
+                
+                for(let i=0; i<4; i++) {
+                    eCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    eCtx.beginPath();
+                    eCtx.arc(offsetX + i*laneW + laneW/2, currentLineY + 90, 20, 0, Math.PI*2);
+                    eCtx.fill();
+                }
+            }
+
             if(isRecording && isTrackPlaying && !isRecordingPaused) {
                 for(let i=0; i<4; i++) {
                     if(recordingNotes[i]) {
@@ -1419,7 +1536,9 @@ function startEditor() {
                     eCtx.fillRect(x + 18, yEnd, laneW - 36, yStart - yEnd);
                 }
                 if(yStart >= -20 && yStart <= rect.height + 20) {
-                    eCtx.fillStyle = '#fff'; eCtx.fillRect(x + 5, yStart - 4, laneW - 10, 8);
+                    eCtx.fillStyle = '#fff'; 
+                    if(note.effect && note.effect !== 'none') eCtx.fillStyle = '#ff0055';
+                    eCtx.fillRect(x + 5, yStart - 4, laneW - 10, 8);
                 }
             });
         }
@@ -1437,7 +1556,7 @@ function startEditor() {
         function tryTestPlay() {
             if(currentNotes.length === 0) { alert("ノーツがありません。"); return; }
             testPlayMode = true;
-            currentNotes.forEach(n => { n.hit = false; n.missed = false; n.isHolding = false; n.hitEnd = false; n.played = false; });
+            currentNotes.forEach(n => { n.hit = false; n.missed = false; n.isHolding = false; n.hitEnd = false; n.played = false; n.effectTriggered = false; });
             gameScore = 0; gameCombo = 0; maxCombo = 0; grooveGauge = 80; countPerf = 0; countGreat = 0; countGood = 0; countMiss = 0;
             hitEffects = []; particles = []; trackCurrentTime = 0; isGamePaused = false;
             document.getElementById('autoplay-badge').style.display = 'block'; document.getElementById('autoplay-badge').innerText = "TEST PLAY";
@@ -1569,11 +1688,10 @@ function startEditor() {
             requestAnimationFrame(engineLoop);
         }
 
-            // ==========================================
+        // ==========================================
         // 初期化 & APIイベントバインド
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
-            // 追加のMusicdata配列が存在する場合、メインのsongListに全て結合する機能を追加
             if (window.songList2) window.songList = window.songList.concat(window.songList2);
             if (window.songList3) window.songList = window.songList.concat(window.songList3);
             if (window.songList4) window.songList = window.songList.concat(window.songList4);
@@ -1632,7 +1750,14 @@ function startEditor() {
                     if (existingIdx !== -1) {
                         currentNotes.splice(existingIdx, 1);
                     } else {
-                        currentNotes.push({ lane: lane, time: noteTime, isLong: false });
+                        currentNotes.push({ 
+                            lane: lane, 
+                            time: noteTime, 
+                            isLong: false,
+                            speedMult: currentNoteSpeedMult,
+                            effect: currentNoteEffect,
+                            effectDuration: currentNoteEffectDur
+                        });
                         currentNotes.sort((a, b) => a.time - b.time);
                     }
                     saveToGlobalChart();
@@ -1652,7 +1777,7 @@ function startEditor() {
         // キーボード入力リスナー
         // ==========================================
         window.addEventListener('keydown', (e) => {
-            if (e.repeat) return; // 不要な連打無効化
+            if (e.repeat) return;
 
             if (bindingLane !== -1 && document.getElementById('settings-modal').classList.contains('show')) {
                 e.preventDefault(); 
@@ -1728,63 +1853,67 @@ function startEditor() {
                         if (isRecording && !isRecordingPaused) {
                             let snapTime = Math.round(editorScrollSec / gridSnapSec) * gridSnapSec;
                             if (isNaN(snapTime)) snapTime = editorScrollSec;
-                            recordingNotes[lane] = { lane: lane, time: snapTime, isLong: false };
+                            recordingNotes[lane] = { 
+                                lane: lane, 
+                                time: snapTime, 
+                                isLong: false,
+                                speedMult: currentNoteSpeedMult,
+                                effect: currentNoteEffect,
+                                effectDuration: currentNoteEffectDur
+                            };
                             currentNotes.push(recordingNotes[lane]);
                         }
                     }
                 }
             }
         });
-        // セーブデータをファイルとして保存（エクスポート）
-function exportSaveData() {
-    const data = JSON.stringify(localStorage);
-    const blob = new Blob([data], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'strikers_savedata.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    alert('セーブデータを保存しました。アカウントが消えた際はこのファイルを読み込んでください。');
-}
 
-// セーブデータをファイルから復元（インポート）
-function importSaveData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = JSON.parse(e.target.result);
-            // 既存のデータをクリアして復元
-            localStorage.clear();
-            for (let key in data) {
-                localStorage.setItem(key, data[key]);
-            }
-            alert('データの復元が完了しました。ページをリロードします。');
-            location.reload();
-        } catch (error) {
-            alert('データの読み込みに失敗しました。ファイルが間違っている可能性があります。');
+        // セーブデータをファイルとして保存（エクスポート）
+        function exportSaveData() {
+            const data = JSON.stringify(localStorage);
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'strikers_savedata.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('セーブデータを保存しました。アカウントが消えた際はこのファイルを読み込んでください。');
         }
-    };
-    reader.readAsText(file);
-}
+
+        // セーブデータをファイルから復元（インポート）
+        function importSaveData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // 既存のデータをクリアして復元
+                    localStorage.clear();
+                    for (let key in data) {
+                        localStorage.setItem(key, data[key]);
+                    }
+                    alert('データの復元が完了しました。ページをリロードします。');
+                    location.reload();
+                } catch (error) {
+                    alert('データの読み込みに失敗しました。ファイルが間違っている可能性があります。');
+                }
+            };
+            reader.readAsText(file);
+        }
 
         window.addEventListener('keyup', (e) => {
             const k = e.key.toLowerCase();
             const keyMap = getKeyMapping();
             const lane = keyMap[k];
-
             if (lane !== undefined) {
                 keysState[lane] = false;
-                if (activeScreen === 'game' && !isAutoPlay) {
-                    executeReleaseJudgment(lane);
-                }
-                if (activeScreen === 'editor' && isRecording) {
-                    finalizeRecordingNote(lane);
-                }
+                if (activeScreen === 'game' && !isAutoPlay) executeReleaseJudgment(lane);
+                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) finalizeRecordingNote(lane);
             }
         });
+
     </script>
 </body>
 </html>
