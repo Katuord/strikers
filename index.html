@@ -2204,5 +2204,463 @@
 })();
 
     </script>
+
+<!-- ================================================================
+     STRIKERS!! v7.1 ADDITIVE ENHANCEMENT PATCH
+     No existing feature/data is removed. Everything below extends the
+     already-loaded functions and UI in-place.
+     ================================================================ -->
+<style>
+/* v7.1: full-screen Rainbow, no traveling stain/spot effect */
+#rainbow-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    pointer-events: none !important;
+    z-index: 8000 !important;
+    display: none;
+    opacity: 0;
+    background: linear-gradient(135deg,
+        #ff0000 0%, #ff7f00 14%, #ffff00 28%, #00ff00 42%,
+        #00ffff 56%, #0000ff 70%, #8b00ff 84%, #ff0000 100%);
+    background-size: 100% 100% !important;
+    background-position: 50% 50% !important;
+    mix-blend-mode: screen;
+    will-change: filter, opacity;
+    transform: translateZ(0);
+}
+/* Keep old animation name available for compatibility, but do not use it for
+   the new Rainbow timing logic. */
+@keyframes rainbowGlowNoRotate {
+    0%, 100% { background-position: 50% 50%; filter: hue-rotate(0deg); opacity: 0; }
+}
+
+/* v7.1 editor UX */
+#v71-editor-hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #dff;
+    text-shadow: 0 0 8px rgba(0,240,255,.65);
+}
+#v71-editor-info, #v71-editor-hints {
+    background: rgba(0,0,0,.58);
+    border: 1px solid rgba(0,240,255,.24);
+    border-radius: 4px;
+    padding: 5px 8px;
+    backdrop-filter: blur(5px);
+}
+#v71-editor-info { white-space: nowrap; }
+#v71-editor-hints { opacity: .72; white-space: nowrap; }
+
+#v71-editor-tools {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+}
+#v71-editor-tools button {
+    min-height: 28px;
+    padding: 4px 6px;
+    font-size: 9px;
+}
+
+#v71-editor-selected {
+    color: #00ff88;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    min-height: 16px;
+    margin-top: 6px;
+}
+
+/* Selected-note pulse is canvas-rendered; this just adds a compact status. */
+</style>
+
+<script>
+(function(){
+    'use strict';
+
+    /* ============================================================
+       RAINBOW v7.1
+       Whole screen changes uniformly. One new hue every 1.000 sec,
+       with the transition itself lasting exactly one second. There is
+       no background-position animation and therefore no wrap/pause gap.
+       ============================================================ */
+    const V71_ORIGINAL_RAINBOW = triggerRainbowEffect;
+    const V71_ORIGINAL_RESET = resetVisualEffects;
+    let v71RainbowInterval = null;
+    let v71RainbowEndTimer = null;
+    let v71RainbowHueStep = 0;
+
+    function v71ClearRainbow(){
+        if (v71RainbowInterval) { clearInterval(v71RainbowInterval); v71RainbowInterval = null; }
+        if (v71RainbowEndTimer) { clearTimeout(v71RainbowEndTimer); v71RainbowEndTimer = null; }
+    }
+
+    triggerRainbowEffect = function(duration){
+        const el = document.getElementById('rainbow-overlay');
+        if (!el) return V71_ORIGINAL_RAINBOW(duration);
+
+        v71ClearRainbow();
+        const seconds = Math.max(0.1, Number(duration) || 2);
+        const totalMs = seconds * 1000;
+        const HUE_STEP = 60;
+
+        el.style.display = 'block';
+        el.style.animation = 'none';
+        el.style.backgroundPosition = '50% 50%';
+        el.style.backgroundSize = '100% 100%';
+        el.style.opacity = '0.72';
+        el.style.transition = 'filter 1s linear, opacity 0.14s linear';
+        v71RainbowHueStep = 0;
+        el.style.filter = 'hue-rotate(0deg)';
+        void el.offsetWidth;
+
+        /* First shift happens exactly 1.000s later; subsequent shifts are
+           also fixed to 1.000s, independent of duration. */
+        if (totalMs > 1000) {
+            v71RainbowInterval = setInterval(() => {
+                v71RainbowHueStep += 1;
+                const hue = (v71RainbowHueStep * HUE_STEP) % 360;
+                el.style.filter = `hue-rotate(${hue}deg)`;
+            }, 1000);
+        }
+
+        v71RainbowEndTimer = setTimeout(() => {
+            v71ClearRainbow();
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (!v71RainbowInterval) {
+                    el.style.display = 'none';
+                    el.style.animation = '';
+                    el.style.transition = '';
+                    el.style.filter = '';
+                    el.style.opacity = '0';
+                }
+            }, 160);
+        }, totalMs);
+    };
+
+    resetVisualEffects = function(){
+        v71ClearRainbow();
+        V71_ORIGINAL_RESET();
+        const el = document.getElementById('rainbow-overlay');
+        if (el) {
+            el.style.display = 'none';
+            el.style.animation = '';
+            el.style.transition = '';
+            el.style.filter = '';
+            el.style.opacity = '0';
+        }
+    };
+
+    /* ============================================================
+       EDITOR v7.1: undo/redo, selection info, bulk snap, nudge and
+       safer edits. All existing click/record/import/export functions stay.
+       ============================================================ */
+    let v71History = [];
+    let v71HistoryIndex = -1;
+    let v71SelectedIndex = -1;
+    let v71EditorHud = null;
+    let v71EditorInfo = null;
+    let v71EditorHints = null;
+    let v71SelectedLabel = null;
+
+    function v71CloneNotes(notes){
+        try { return JSON.parse(JSON.stringify(Array.isArray(notes) ? notes : [])); }
+        catch(e){ return []; }
+    }
+
+    function v71PushHistory(reason='edit'){
+        if (typeof currentNotes === 'undefined') return;
+        const snap = v71CloneNotes(currentNotes);
+        const last = v71History[v71HistoryIndex];
+        if (last && JSON.stringify(last.notes) === JSON.stringify(snap)) return;
+        v71History = v71History.slice(0, v71HistoryIndex + 1);
+        v71History.push({ notes: snap, reason, at: Date.now() });
+        if (v71History.length > 60) v71History.shift();
+        v71HistoryIndex = v71History.length - 1;
+        v71UpdateInfo();
+    }
+
+    function v71RestoreHistory(index){
+        if (index < 0 || index >= v71History.length) return false;
+        currentNotes = v71CloneNotes(v71History[index].notes);
+        currentNotes.sort((a,b) => (Number(a.time)||0) - (Number(b.time)||0));
+        v71HistoryIndex = index;
+        v71SelectedIndex = -1;
+        saveToGlobalChart();
+        if (typeof resizeEditorCanvas === 'function') resizeEditorCanvas();
+        v71UpdateInfo();
+        return true;
+    }
+
+    function v71Undo(){ v71RestoreHistory(v71HistoryIndex - 1); }
+    function v71Redo(){ v71RestoreHistory(v71HistoryIndex + 1); }
+
+    function v71EnsureHud(){
+        if (!document.getElementById('editor-screen')) return;
+        const main = document.querySelector('#editor-screen .editor-main');
+        if (!main) return;
+        if (!document.getElementById('v71-editor-hud')) {
+            v71EditorHud = document.createElement('div');
+            v71EditorHud.id = 'v71-editor-hud';
+            v71EditorInfo = document.createElement('div');
+            v71EditorInfo.id = 'v71-editor-info';
+            v71EditorHints = document.createElement('div');
+            v71EditorHints.id = 'v71-editor-hints';
+            v71EditorHints.textContent = 'Wheel=SCROLL  Ctrl/Alt+Wheel=ZOOM  Ctrl+Z/Y=UNDO/REDO  Q=SNAP';
+            v71EditorHud.append(v71EditorInfo, v71EditorHints);
+            main.style.position = 'relative';
+            main.appendChild(v71EditorHud);
+        }
+        if (!document.getElementById('v71-editor-selected')) {
+            v71SelectedLabel = document.createElement('div');
+            v71SelectedLabel.id = 'v71-editor-selected';
+            const parent = document.querySelector('#editor-screen .editor-controls-group');
+            if (parent) parent.appendChild(v71SelectedLabel);
+        }
+    }
+
+    function v71UpdateInfo(){
+        if (!v71EditorInfo) return;
+        const notes = Array.isArray(currentNotes) ? currentNotes : [];
+        const longs = notes.filter(n => n && n.isLong).length;
+        const effects = notes.filter(n => n && n.effect && n.effect !== 'none').length;
+        const first = notes.length ? Number(notes[0].time)||0 : 0;
+        const last = notes.length ? Number(notes[notes.length-1].time)||0 : 0;
+        v71EditorInfo.textContent = `NOTES ${notes.length}  LONG ${longs}  FX ${effects}  RANGE ${first.toFixed(2)}-${last.toFixed(2)}s  Z ${Math.round(Number(pxPerSec)||0)}`;
+        if (v71SelectedLabel) {
+            const n = v71SelectedIndex >= 0 ? notes[v71SelectedIndex] : null;
+            v71SelectedLabel.textContent = n
+                ? `SELECTED #${v71SelectedIndex+1}  LANE:${(Number(n.lane)||0)+1}  TIME:${(Number(n.time)||0).toFixed(3)}${n.isLong ? `  END:${(Number(n.endTime)||0).toFixed(3)}` : ''}`
+                : 'SELECTED: NONE  (click a note to select / click empty space to place)';
+        }
+    }
+
+    function v71NearestNote(clickX, clickY){
+        if (typeof eCanvas === 'undefined' || !eCanvas) return -1;
+        const rect = eCanvas.getBoundingClientRect();
+        const laneW = rect.width / 4;
+        const timelineY = rect.height - 120;
+        const lane = Math.max(0, Math.min(3, Math.floor(clickX / laneW)));
+        const clickedTime = (typeof editorScrollSec === 'number' ? editorScrollSec : 0) + (timelineY - clickY) / (Number(pxPerSec)||180);
+        let best = -1, bestDist = Infinity;
+        (currentNotes||[]).forEach((n, i) => {
+            if ((Number(n.lane)||0) !== lane) return;
+            const d = Math.abs((Number(n.time)||0) - clickedTime);
+            if (d < bestDist && d < 0.16) { best = i; bestDist = d; }
+        });
+        return best;
+    }
+
+    /* Existing click editing remains untouched. A capture/bubble pair wraps
+       it so Ctrl+Z can reliably restore the state from immediately before
+       the actual add/remove operation. */
+    let v71ClickBefore = null;
+    if (typeof eCanvas !== 'undefined' && eCanvas) {
+        eCanvas.addEventListener('click', function(e){
+            if (activeScreen !== 'editor') return;
+            v71ClickBefore = v71CloneNotes(currentNotes);
+        }, true);
+        eCanvas.addEventListener('click', function(e){
+            if (activeScreen !== 'editor') return;
+            const rect = eCanvas.getBoundingClientRect();
+            v71SelectedIndex = v71NearestNote(e.clientX - rect.left, e.clientY - rect.top);
+            if (v71ClickBefore && JSON.stringify(v71ClickBefore) !== JSON.stringify(currentNotes || [])) {
+                const after = v71CloneNotes(currentNotes);
+                /* Put the before-state in history, then the resulting state. */
+                v71History = v71History.slice(0, v71HistoryIndex + 1);
+                v71History.push({notes: v71ClickBefore, reason:'click-before', at:Date.now()});
+                v71History.push({notes: after, reason:'click-after', at:Date.now()});
+                if (v71History.length > 60) v71History = v71History.slice(-60);
+                v71HistoryIndex = v71History.length - 1;
+            }
+            v71ClickBefore = null;
+            v71UpdateInfo();
+        }, false);
+    }
+
+    function v71SnapAll(){
+        const snap = Number(gridSnapSec)||0;
+        if (!snap || !Array.isArray(currentNotes)) return;
+        v71PushHistory('before-snap');
+        currentNotes.forEach(n => {
+            if (!n) return;
+            n.time = Math.max(0, Number((Math.round((Number(n.time)||0)/snap)*snap).toFixed(3)));
+            if (n.isLong && n.endTime !== undefined) {
+                n.endTime = Math.max(n.time, Number((Math.round((Number(n.endTime)||0)/snap)*snap).toFixed(3)));
+            }
+        });
+        currentNotes.sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0));
+        saveToGlobalChart();
+        v71PushHistory('after-snap');
+        v71SelectedIndex = -1;
+        v71UpdateInfo();
+    }
+
+    function v71NudgeSelected(delta){
+        if (v71SelectedIndex < 0 || !currentNotes[v71SelectedIndex]) return;
+        const n = currentNotes[v71SelectedIndex];
+        const d = Number(delta)||0;
+        n.time = Math.max(0, Number((Number(n.time||0)+d).toFixed(3)));
+        if (n.isLong && n.endTime !== undefined) n.endTime = Math.max(n.time, Number((Number(n.endTime||0)+d).toFixed(3)));
+        currentNotes.sort((a,b)=>(Number(a.time)||0)-(Number(b.time)||0));
+        v71SelectedIndex = currentNotes.indexOf(n);
+        saveToGlobalChart();
+        v71UpdateInfo();
+    }
+
+    /* History hook: edits are snapshotted before/after common destructive or
+       bulk operations. Existing functions remain callable by the game. */
+    const V71_ORIGINAL_CLEAR = clearCurrentChart;
+    clearCurrentChart = function(){
+        if (Array.isArray(currentNotes) && currentNotes.length) v71PushHistory('before-clear');
+        V71_ORIGINAL_CLEAR();
+        v71PushHistory('after-clear');
+        v71SelectedIndex = -1;
+        v71UpdateInfo();
+    };
+
+    const V71_ORIGINAL_IO = executeIoAction;
+    executeIoAction = function(){
+        const before = v71CloneNotes(currentNotes);
+        V71_ORIGINAL_IO();
+        if (JSON.stringify(before) !== JSON.stringify(currentNotes||[])) {
+            v71PushHistory('import');
+            v71SelectedIndex = -1;
+            v71UpdateInfo();
+        }
+    };
+
+    const V71_ORIGINAL_START_EDITOR = startEditor;
+    startEditor = function(){
+        V71_ORIGINAL_START_EDITOR();
+        v71History = [];
+        v71HistoryIndex = -1;
+        v71SelectedIndex = -1;
+        v71PushHistory('editor-open');
+        v71EnsureHud();
+        v71UpdateInfo();
+    };
+
+    const V71_ORIGINAL_FINISH_GAME = finishGame;
+    finishGame = function(){
+        const wasTest = !!testPlayMode;
+        V71_ORIGINAL_FINISH_GAME();
+        if (wasTest && activeScreen === 'editor') {
+            /* Refresh the history base after returning from Test Play, but do
+               not erase the user's chart. */
+            v71History = [];
+            v71HistoryIndex = -1;
+            v71SelectedIndex = -1;
+            v71PushHistory('return-from-test');
+            v71EnsureHud();
+            v71UpdateInfo();
+        }
+    };
+
+    const V71_ORIGINAL_QUIT = triggerQuitToSelect;
+    triggerQuitToSelect = function(){
+        const wasTest = !!testPlayMode;
+        V71_ORIGINAL_QUIT();
+        if (wasTest && activeScreen === 'editor') {
+            v71History = [];
+            v71HistoryIndex = -1;
+            v71SelectedIndex = -1;
+            v71PushHistory('return-from-test-escape');
+            v71EnsureHud();
+            v71UpdateInfo();
+        }
+    };
+
+    /* Add a compact editor tool group into the existing controls. */
+    function v71AddTools(){
+        const editor = document.getElementById('editor-screen');
+        if (!editor || document.getElementById('v71-editor-tools')) return;
+        const groups = editor.querySelectorAll('.editor-controls-group');
+        if (!groups.length) return;
+        const group = groups[Math.max(0, groups.length - 2)];
+        const title = document.createElement('div');
+        title.style.cssText = "font-size:9px;color:#888;font-family:'Press Start 2P';margin:8px 0 4px;";
+        title.textContent = '⚙ ADVANCED EDIT';
+        const tools = document.createElement('div');
+        tools.id = 'v71-editor-tools';
+        tools.innerHTML = `
+            <button class="editor-btn" id="v71-undo">↶ UNDO</button>
+            <button class="editor-btn" id="v71-redo">↷ REDO</button>
+            <button class="editor-btn" id="v71-snap">GRID SNAP ALL</button>
+            <button class="editor-btn" id="v71-refresh">REFRESH</button>
+        `;
+        group.appendChild(title);
+        group.appendChild(tools);
+        document.getElementById('v71-undo').onclick = v71Undo;
+        document.getElementById('v71-redo').onclick = v71Redo;
+        document.getElementById('v71-snap').onclick = v71SnapAll;
+        document.getElementById('v71-refresh').onclick = function(){ resizeEditorCanvas(); v71UpdateInfo(); };
+    }
+
+    let v71RecordBefore = null;
+    window.addEventListener('keydown', function(e){
+        if (activeScreen !== 'editor') return;
+        const key = e.key.toLowerCase();
+        const map = getKeyMapping();
+        if (isRecording && !isRecordingPaused && !e.repeat && map[key] !== undefined) {
+            v71RecordBefore = v71CloneNotes(currentNotes);
+        }
+    }, true);
+
+    window.addEventListener('keydown', function(e){
+        if (activeScreen !== 'editor') return;
+        const key = e.key.toLowerCase();
+        const map = getKeyMapping();
+        if (v71RecordBefore && isRecording && !isRecordingPaused && !e.repeat && map[key] !== undefined) {
+            const after = v71CloneNotes(currentNotes);
+            if (JSON.stringify(v71RecordBefore) !== JSON.stringify(after)) {
+                v71History = v71History.slice(0, v71HistoryIndex + 1);
+                v71History.push({notes:v71RecordBefore, reason:'record-before', at:Date.now()});
+                v71History.push({notes:after, reason:'record-after', at:Date.now()});
+                if (v71History.length > 60) v71History = v71History.slice(-60);
+                v71HistoryIndex = v71History.length - 1;
+                v71UpdateInfo();
+            }
+            v71RecordBefore = null;
+        }
+        if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); v71Undo(); return; }
+        if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) { e.preventDefault(); v71Redo(); return; }
+        if (e.key.toLowerCase() === 'q') { e.preventDefault(); v71SnapAll(); return; }
+        if (v71SelectedIndex >= 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.preventDefault();
+            v71NudgeSelected(e.key === 'ArrowLeft' ? -0.01 : 0.01);
+        }
+    }, true);
+
+    /* Keep info current while scrolling / zooming / editing. */
+    const V71_UPDATE_ZOOM = updateZoom;
+    updateZoom = function(){ V71_UPDATE_ZOOM(); v71EnsureHud(); v71UpdateInfo(); };
+
+    document.addEventListener('DOMContentLoaded', function(){
+        setTimeout(function(){ v71EnsureHud(); v71AddTools(); v71UpdateInfo(); }, 0);
+    });
+
+    /* Existing render loop is preserved; this only redraws the HUD text. */
+    const V71_RENDER_EDITOR = renderEditor;
+    renderEditor = function(){
+        V71_RENDER_EDITOR();
+        if (activeScreen === 'editor') v71UpdateInfo();
+    };
+})();
+</script>
+
 </body>
 </html>
