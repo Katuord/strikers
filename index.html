@@ -462,7 +462,7 @@
                 
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-size:12px; color:#aaa;">ZOOM:</span>
-                    <input type="range" id="zoomSlider" min="100" max="800" value="400" onchange="updateZoom()" style="width:130px;">
+                    <input type="range" id="zoomSlider" min="70" max="600" value="180" onchange="updateZoom()" style="width:130px;">
                 </div>
 
                 <button class="editor-btn" onclick="tryTestPlay()" style="border-color: #00ff88; color: #00ff88; margin-top: 4px;">🎮 TEST PLAY</button>
@@ -2815,5 +2815,572 @@
 })();
 </script>
 
+
+<!-- v7.3 Rainbow Whole-Screen + FX additive patch -->
+<style>
+/* v7.3: Rainbow itself is a SOLID full-screen tint. No gradient flow. */
+#rainbow-overlay{
+  background:#ff3030 !important;
+  background-image:none !important;
+  background-size:100% 100% !important;
+  background-position:50% 50% !important;
+  mix-blend-mode:normal !important;
+  opacity:0;
+  transition:background-color 1s linear, opacity .18s linear !important;
+  will-change:background-color,opacity;
+}
+#v73-rainbow-pulse,#v73-rainbow-sheen,#v73-rainbow-vignette{
+  position:fixed;inset:0;pointer-events:none;display:none;opacity:0;z-index:7999;
+}
+#v73-rainbow-pulse{
+  background:radial-gradient(circle at 50% 50%,transparent 0 28%,rgba(255,255,255,.28) 29%,transparent 31% 100%);
+  transform:scale(.35);mix-blend-mode:screen;
+}
+#v73-rainbow-sheen{
+  background:linear-gradient(0deg,rgba(255,255,255,.10),transparent 25% 75%,rgba(255,255,255,.08));
+  mix-blend-mode:screen;
+}
+#v73-rainbow-vignette{
+  background:radial-gradient(circle,transparent 45%,rgba(0,0,0,.15) 100%);
+  mix-blend-mode:multiply;
+}
+@keyframes v73Pulse{
+  0%{opacity:0;transform:scale(.35)}
+  18%{opacity:.34}
+  100%{opacity:0;transform:scale(1.55)}
+}
+@keyframes v73Sheen{
+  0%{opacity:0;transform:translateY(8%)}
+  18%{opacity:.9}
+  52%{opacity:.38}
+  100%{opacity:0;transform:translateY(-8%)}
+}
+@keyframes v73Vignette{
+  0%{opacity:0}
+  20%{opacity:.5}
+  75%{opacity:.35}
+  100%{opacity:0}
+}
+</style>
+<script>
+(function(){
+  'use strict';
+  const rb=document.getElementById('rainbow-overlay');
+  if(!rb) return;
+  const pulse=document.createElement('div'); pulse.id='v73-rainbow-pulse';
+  const sheen=document.createElement('div'); sheen.id='v73-rainbow-sheen';
+  const vignette=document.createElement('div'); vignette.id='v73-rainbow-vignette';
+  document.body.append(pulse,sheen,vignette);
+
+  const colors=['#ff3030','#ff8a20','#ffe73a','#39df62','#24d8ff','#3f78ff','#a45cff','#ff4fae'];
+  let timer=null, interval=null, step=0;
+  function clear(){
+    if(timer){clearTimeout(timer);timer=null;}
+    if(interval){clearInterval(interval);interval=null;}
+  }
+  function burst(){
+    pulse.style.display='block';pulse.style.animation='none';void pulse.offsetWidth;pulse.style.animation='v73Pulse .95s cubic-bezier(.22,1,.36,1) forwards';
+    sheen.style.display='block';sheen.style.animation='none';void sheen.offsetWidth;sheen.style.animation='v73Sheen .95s ease-out forwards';
+    vignette.style.display='block';vignette.style.animation='none';void vignette.offsetWidth;vignette.style.animation='v73Vignette .95s ease-out forwards';
+  }
+  function cleanup(){
+    clear();
+    [pulse,sheen,vignette].forEach(x=>{x.style.display='none';x.style.animation='';x.style.opacity='0';});
+    rb.style.opacity='0';
+    rb.style.backgroundColor='transparent';
+  }
+  window.triggerRainbowEffect=function(duration){
+    clear();
+    const seconds=Math.max(.1,Number(duration)||2);
+    rb.style.display='block';rb.style.animation='none';rb.style.backgroundImage='none';
+    rb.style.backgroundSize='100% 100%';rb.style.backgroundPosition='50% 50%';
+    rb.style.transition='background-color 1s linear, opacity .18s linear';
+    rb.style.opacity='0';rb.style.backgroundColor=colors[0];
+    void rb.offsetWidth;
+    requestAnimationFrame(()=>{rb.style.opacity='.42';});
+    step=0;burst();
+    if(seconds>1){
+      interval=setInterval(()=>{
+        step=(step+1)%colors.length;
+        rb.style.backgroundColor=colors[step];
+        burst();
+      },1000);
+    }
+    timer=setTimeout(()=>{
+      clear();
+      rb.style.opacity='0';
+      setTimeout(()=>{
+        rb.style.display='none';
+        rb.style.backgroundColor='transparent';
+        [pulse,sheen,vignette].forEach(x=>{x.style.display='none';x.style.animation='';});
+      },180);
+    },seconds*1000);
+  };
+
+  /* Make all existing reset logic also clear our additive layers. */
+  const oldReset=window.resetVisualEffects;
+  if(typeof oldReset==='function'){
+    window.resetVisualEffects=function(){clear();try{oldReset();}finally{[pulse,sheen,vignette].forEach(x=>{x.style.display='none';x.style.animation='';x.style.opacity='0';});}};
+  }
+})();
+</script>
+
+
+<!-- v7.4.1 NOTE SPEED SETTINGS SYNC - additive -->
+<style>
+#v74-settings-speed{display:flex;align-items:center;gap:5px;flex-wrap:wrap;width:210px}
+#v74-settings-speed button{min-width:30px;height:28px;font-family:'Press Start 2P';font-size:8px;background:#060914;color:#fff;border:1px solid rgba(0,240,255,.25);cursor:pointer}
+#v74-settings-speed button:hover{background:var(--accent-neon);color:#000}
+#v74-settings-speed-value{min-width:48px;text-align:center;color:var(--accent-neon);font-family:'Share Tech Mono';font-size:14px}
+</style>
+<script>
+(function(){
+'use strict';
+function v741Sync(){
+ const el=document.getElementById('v74-settings-speed-value'); if(el)el.textContent=(Number(systemNoteSpeed)||3).toFixed(1)+'x';
+ const ed=document.getElementById('v74-editor-speed'); if(ed)ed.textContent=(Number(systemNoteSpeed)||3).toFixed(1)+'x';
+ const lab=document.getElementById('v74-speed-label'); if(lab)lab.textContent='NOTE SPEED SYNC • '+(Number(systemNoteSpeed)||3).toFixed(1)+'x';
+}
+function v741Set(v){systemNoteSpeed=Math.max(.5,Math.min(10,Number(v)||3));v741Sync();if(typeof v74UpdateHud==='function')v74UpdateHud();}
+function v741Install(){
+ const box=document.getElementById('speed-controls');if(!box||box.dataset.v741)return;
+ box.dataset.v741='1';box.innerHTML='<div id="v74-settings-speed"><button id="v741-minus">−</button><button id="v741-half">0.5</button><span id="v74-settings-speed-value">3.0x</span><button id="v741-three">3.0</button><button id="v741-plus">＋</button></div>';
+ document.getElementById('v741-minus').onclick=()=>v741Set((Number(systemNoteSpeed)||3)-.2);
+ document.getElementById('v741-plus').onclick=()=>v741Set((Number(systemNoteSpeed)||3)+.2);
+ document.getElementById('v741-half').onclick=()=>v741Set(.5);
+ document.getElementById('v741-three').onclick=()=>v741Set(3);
+ v741Sync();
+}
+const oldChangeSpeedValues=[];
+const speedControlsPoll=setInterval(()=>{if(document.getElementById('speed-controls')){v741Install();clearInterval(speedControlsPoll);}},200);
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v741Install,50));
+window.addEventListener('keydown',()=>{if(activeScreen==='editor')v741Sync();},true);
+setInterval(()=>{if(activeScreen==='editor'||document.getElementById('settings-modal')?.classList.contains('show'))v741Sync();},250);
+})();
+</script>
+
 </body>
 </html>
+<!-- ================================================================
+     STRIKERS!! v7.4 EDITOR OVERHAUL - ADDITIVE ONLY
+     Existing functions/data are intentionally preserved.
+     This patch adds a new game-like editor view, speed sync, hold/chord
+     correction tools, safer editing gestures, and Test Play recovery.
+     ================================================================ -->
+<style>
+/* v7.4 game-like editor */
+#editor-screen.v74-editor-active{background:#02030a!important;}
+#editor-screen.v74-editor-active .editor-side{
+  width:300px;min-width:300px;padding:14px;gap:9px;
+  background:linear-gradient(180deg,rgba(4,7,18,.97),rgba(1,2,8,.97));
+  border-right:1px solid rgba(0,240,255,.28);
+  box-shadow:12px 0 35px rgba(0,0,0,.35);
+}
+#editor-screen.v74-editor-active .editor-main{
+  background:radial-gradient(circle at 50% 38%,rgba(0,240,255,.07),transparent 42%),#02030a;
+}
+#editor-screen.v74-editor-active .editor-controls-group{padding:10px;gap:7px;background:rgba(255,255,255,.025);}
+#editor-screen.v74-editor-active .editor-time-display{
+  margin:0 0 3px;padding:8px 6px;font-size:18px;
+  border:1px solid rgba(0,240,255,.22);border-radius:4px;background:rgba(0,0,0,.28);
+}
+#v74-editor-topbar{
+  position:absolute;left:12px;right:12px;top:12px;height:48px;z-index:7;pointer-events:none;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-family:'Press Start 2P',monospace;font-size:9px;
+}
+.v74-hudbox{background:rgba(3,6,16,.82);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);padding:8px 10px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+#v74-editor-left-hud{color:#fff;min-width:220px}
+#v74-editor-right-hud{color:var(--accent-neon);text-align:right;min-width:250px}
+#v74-editor-mode{color:#00ff88}.v74-muted{color:#888}
+#v74-speed-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+#v74-speed-tools button,#v74-correct-tools button,#v74-mode-tools button{min-height:28px;font-size:8px;padding:4px 3px}
+#v74-correct-tools{display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
+#v74-mode-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.v74-mode-active{background:var(--accent-neon)!important;color:#000!important;border-color:#fff!important;box-shadow:0 0 14px rgba(0,240,255,.35)!important}
+#v74-selection-info{font-family:'Share Tech Mono',monospace;font-size:11px;color:#aaa;min-height:15px;line-height:1.4}
+#v74-status{font-family:'Share Tech Mono',monospace;font-size:11px;color:#8ff;min-height:14px}
+#v74-help{font-family:'Share Tech Mono',monospace;font-size:10px;color:#777;line-height:1.45}
+#v74-speed-label{font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center;color:#fff;padding:4px;border:1px solid rgba(0,240,255,.14)}
+#v74-editor-badge{color:#00ff88;font-size:8px;letter-spacing:1px}
+</style>
+<script>
+(function(){
+'use strict';
+
+const V74_OLD_RENDER_EDITOR = renderEditor;
+const V74_OLD_START_EDITOR = startEditor;
+const V74_OLD_TRY_TEST = tryTestPlay;
+const V74_OLD_UPDATE_ZOOM = updateZoom;
+
+let v74Mode='tap';
+let v74Selected=-1;
+let v74Drag=null;
+let v74HistoryBusy=false;
+let v74LastToolStatus='READY';
+let v74EditorInitialized=false;
+let v74WheelGuard=false;
+
+function v74Clone(){return JSON.parse(JSON.stringify(currentNotes||[]));}
+function v74Num(v,f=0){const n=Number(v);return Number.isFinite(n)?n:f;}
+function v74Sort(){currentNotes.sort((a,b)=>v74Num(a.time)-v74Num(b.time)||v74Num(a.lane)-v74Num(b.lane));}
+function v74Snap(t){const s=v74Num(gridSnapSec);return s>0?Number((Math.round(t/s)*s).toFixed(3)):Number(t.toFixed(3));}
+function v74PushHistory(reason){if(typeof v71PushHistory==='function'&&!v74HistoryBusy)v71PushHistory(reason);}
+function v74Save(){v74Sort();saveToGlobalChart();if(typeof v71UpdateInfo==='function')v71UpdateInfo();}
+function v74EffectivePx(){
+  const z=Math.max(70,Math.min(600,v74Num(pxPerSec,180)));
+  const speed=Math.max(.5,Math.min(10,v74Num(systemNoteSpeed,3)));
+  return z*(speed/3);
+}
+function v74JudgeY(h){return h-118;}
+
+function v74EnsureUI(){
+  const screen=document.getElementById('editor-screen');
+  if(!screen||v74EditorInitialized)return;
+  screen.classList.add('v74-editor-active');
+  const main=screen.querySelector('.editor-main');
+  if(!main)return;
+
+  if(!document.getElementById('v74-editor-topbar')){
+    const top=document.createElement('div');top.id='v74-editor-topbar';
+    top.innerHTML='<div id="v74-editor-left-hud" class="v74-hudbox"><span id="v74-editor-badge">CHART EDITOR // LIVE TIMELINE</span><br><span id="v74-editor-song">—</span></div>'+
+      '<div id="v74-editor-right-hud" class="v74-hudbox"><span id="v74-editor-mode">TAP</span> <span class="v74-muted">•</span> SPEED <span id="v74-editor-speed">3.0x</span> <span class="v74-muted">•</span> Z <span id="v74-editor-zoom">180</span></div>';
+    main.appendChild(top);
+  }
+
+  const groups=screen.querySelectorAll('.editor-controls-group');
+  if(groups.length){
+    const first=groups[0];
+    if(!document.getElementById('v74-speed-label')){
+      const label=document.createElement('div');label.id='v74-speed-label';label.textContent='NOTE SPEED SYNC • 3.0x';first.appendChild(label);
+      const speed=document.createElement('div');speed.id='v74-speed-tools';
+      speed.innerHTML='<button class="editor-btn" id="v74-spd-down">−</button><button class="editor-btn" id="v74-spd-half">0.5</button><button class="editor-btn" id="v74-spd-default">3.0</button><button class="editor-btn" id="v74-spd-up">＋</button>';
+      first.appendChild(speed);
+      document.getElementById('v74-spd-down').onclick=()=>v74SetSpeed(v74Num(systemNoteSpeed,3)-.2);
+      document.getElementById('v74-spd-up').onclick=()=>v74SetSpeed(v74Num(systemNoteSpeed,3)+.2);
+      document.getElementById('v74-spd-half').onclick=()=>v74SetSpeed(.5);
+      document.getElementById('v74-spd-default').onclick=()=>v74SetSpeed(3);
+    }
+    const editGroup=groups[Math.min(2,groups.length-1)];
+    if(editGroup&&!document.getElementById('v74-mode-tools')){
+      const mode=document.createElement('div');mode.id='v74-mode-tools';
+      mode.innerHTML='<button class="editor-btn v74-mode-active" data-mode="tap">TAP</button><button class="editor-btn" data-mode="hold">HOLD</button><button class="editor-btn" data-mode="select">SELECT</button>';
+      editGroup.appendChild(mode);
+      mode.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>v74SetMode(b.dataset.mode));
+
+      const corr=document.createElement('div');corr.id='v74-correct-tools';
+      corr.innerHTML='<button class="editor-btn" id="v74-hold-fix">HOLD FIX</button><button class="editor-btn" id="v74-chord-fix">CHORD FIX</button><button class="editor-btn" id="v74-dedupe">DEDUPE</button><button class="editor-btn" id="v74-repair">AUTO REPAIR</button>';
+      editGroup.appendChild(corr);
+      document.getElementById('v74-hold-fix').onclick=v74HoldFix;
+      document.getElementById('v74-chord-fix').onclick=v74ChordFix;
+      document.getElementById('v74-dedupe').onclick=v74Dedupe;
+      document.getElementById('v74-repair').onclick=v74AutoRepair;
+
+      const info=document.createElement('div');info.id='v74-selection-info';editGroup.appendChild(info);
+      const status=document.createElement('div');status.id='v74-status';status.textContent='READY';editGroup.appendChild(status);
+      const help=document.createElement('div');help.id='v74-help';help.textContent='CLICK=TAP • DRAG=HOLD • CTRL+CLICK=SELECT • SHIFT+CLICK=CHORD';editGroup.appendChild(help);
+    }
+  }
+
+  const c=eCanvas;
+  if(c&&!c.dataset.v74Bound){
+    c.dataset.v74Bound='1';
+    c.addEventListener('pointerdown',v74PointerDown,true);
+    c.addEventListener('pointerup',v74PointerUp,true);
+    c.addEventListener('pointercancel',v74PointerCancel,true);
+    c.addEventListener('pointerleave',()=>{if(v74Drag)v74Drag.cancelled=true},true);
+    c.addEventListener('wheel',v74Wheel,true);
+  }
+  v74EditorInitialized=true;
+  v74UpdateHud();
+}
+
+function v74SetMode(mode){
+  v74Mode=mode;
+  document.querySelectorAll('#v74-mode-tools [data-mode]').forEach(b=>b.classList.toggle('v74-mode-active',b.dataset.mode===mode));
+  const el=document.getElementById('v74-editor-mode');if(el)el.textContent=mode.toUpperCase();
+  v74SetStatus('MODE → '+mode.toUpperCase());
+}
+function v74SetStatus(msg){v74LastToolStatus=msg;const el=document.getElementById('v74-status');if(el)el.textContent=msg;}
+function v74SetSpeed(speed){
+  systemNoteSpeed=Math.max(.5,Math.min(10,Number(speed)||3));
+  v74UpdateHud();
+  v74SetStatus('SPEED → '+systemNoteSpeed.toFixed(1)+'x');
+}
+
+function v74UpdateHud(){
+  const song=document.getElementById('v74-editor-song');
+  if(song) song.textContent=(currentSong?currentSong.title:'NO SONG')+' // '+String(currentDiff).toUpperCase();
+  const sp=document.getElementById('v74-editor-speed');if(sp)sp.textContent=v74Num(systemNoteSpeed,3).toFixed(1)+'x';
+  const z=document.getElementById('v74-editor-zoom');if(z)z.textContent=Math.round(v74Num(pxPerSec,180));
+  const label=document.getElementById('v74-speed-label');if(label)label.textContent='NOTE SPEED SYNC • '+v74Num(systemNoteSpeed,3).toFixed(1)+'x';
+  const si=document.getElementById('v74-selection-info');
+  if(si){
+    const n=currentNotes&&currentNotes[v74Selected];
+    si.textContent=n?('SELECTED #'+(v74Selected+1)+' • L'+(v74Num(n.lane)+1)+' • '+v74Num(n.time).toFixed(3)+'s'+(n.isLong?' → '+v74Num(n.endTime).toFixed(3)+'s':'')):'NO NOTE SELECTED';
+  }
+}
+
+function v74PointerInfo(e){
+  const rect=eCanvas.getBoundingClientRect();
+  const x=e.clientX-rect.left,y=e.clientY-rect.top;const lane=Math.max(0,Math.min(3,Math.floor(x/(rect.width/4))));
+  const ty=v74JudgeY(rect.height);const t=v74Snap(Math.max(0,editorScrollSec+(ty-y)/v74EffectivePx()));
+  return {rect,x,y,lane,time:t};
+}
+
+function v74FindAt(x,y){
+  const rect=eCanvas.getBoundingClientRect();const laneW=rect.width/4;const lane=Math.floor(x/laneW);const ty=v74JudgeY(rect.height);const ep=v74EffectivePx();
+  let best=-1,bd=Infinity;
+  (currentNotes||[]).forEach((n,i)=>{
+    if(v74Num(n.lane)!==lane)return;
+    const ny=ty-(v74Num(n.time)-editorScrollSec)*ep;
+    const d=Math.abs(ny-y);
+    if(d<bd&&d<18){best=i;bd=d;}
+    if(n.isLong&&n.endTime!==undefined){
+      const ey=ty-(v74Num(n.endTime)-editorScrollSec)*ep;
+      if(y>=Math.min(ny,ey)-8&&y<=Math.max(ny,ey)+8){best=i;bd=0;}
+    }
+  });
+  return best;
+}
+
+function v74PointerDown(e){
+  if(activeScreen!=='editor'||e.button!==0)return;
+  v74EnsureUI();
+  const p=v74PointerInfo(e);
+  const idx=v74FindAt(p.x,p.y);
+  if(e.ctrlKey||v74Mode==='select'){
+    if(idx>=0){v74Selected=idx;v74SetStatus('SELECTED #'+(idx+1));v74UpdateHud();}
+    e.stopImmediatePropagation();return;
+  }
+  if(v74Mode==='hold'||e.shiftKey){
+    v74Drag={pointerId:e.pointerId,lane:p.lane,start:p.time,startY:p.y,cancelled:false};
+    try{eCanvas.setPointerCapture(e.pointerId)}catch(_){ }
+    e.stopImmediatePropagation();return;
+  }
+  if(e.altKey){
+    const base=v74Num(editorScrollSec,0);const t=v74Snap(base);
+    v74PushHistory('chord-click-before');
+    let changed=false;
+    for(let l=0;l<4;l++){
+      if(!(currentNotes||[]).some(n=>v74Num(n.lane)===l&&Math.abs(v74Num(n.time)-t)<0.025)){
+        currentNotes.push({lane:l,time:t,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});changed=true;
+      }
+    }
+    if(changed)v74Save();
+    v74SetStatus(changed?'4-LANE CHORD @ '+t.toFixed(3):'CHORD ALREADY EXISTS');
+    v74PushHistory('chord-click-after');
+    e.stopImmediatePropagation();return;
+  }
+  /* Default TAP mode intentionally mirrors the existing editor's click behavior,
+     but keeps a selectable index and adds the current note metadata. */
+  const oldIdx=idx;
+  if(oldIdx>=0){
+    v74Selected=oldIdx;currentNotes.splice(oldIdx,1);v74Save();v74SetStatus('REMOVED NOTE');
+  }else{
+    v74PushHistory('tap-add-before');
+    currentNotes.push({lane:p.lane,time:p.time,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});
+    v74Sort();v74Selected=currentNotes.findIndex(n=>v74Num(n.time)===p.time&&v74Num(n.lane)===p.lane);v74Save();v74SetStatus('TAP @ '+p.time.toFixed(3));v74PushHistory('tap-add-after');
+  }
+  e.stopImmediatePropagation();
+}
+function v74PointerUp(e){
+  if(!v74Drag||v74Drag.pointerId!==e.pointerId)return;
+  const p=v74PointerInfo(e);const d=v74Drag;
+  try{eCanvas.releasePointerCapture(e.pointerId)}catch(_){ }
+  v74Drag=null;if(d.cancelled){e.stopImmediatePropagation();return;}
+  const s=Math.min(d.start,p.time),end=Math.max(d.start,p.time);const finish=end>s?end: s+Math.max(0.1,v74Num(gridSnapSec,.05));
+  v74PushHistory('hold-add-before');
+  currentNotes.push({lane:d.lane,time:Number(s.toFixed(3)),endTime:Number(finish.toFixed(3)),isLong:true,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});
+  v74Sort();v74Save();v74Selected=currentNotes.findIndex(n=>v74Num(n.time)===Number(s.toFixed(3))&&v74Num(n.lane)===d.lane&&n.isLong);
+  v74SetStatus('HOLD '+s.toFixed(3)+' → '+finish.toFixed(3));v74PushHistory('hold-add-after');
+  e.stopImmediatePropagation();
+}
+function v74PointerCancel(e){if(v74Drag&&v74Drag.pointerId===e.pointerId)v74Drag=null;}
+
+function v74Wheel(e){
+  if(activeScreen!=='editor'||v74WheelGuard)return;
+  v74WheelGuard=true;
+  try{
+    if(e.ctrlKey||e.altKey){
+      const dir=e.deltaY<0?10:-10;const sl=document.getElementById('zoomSlider');
+      if(sl){sl.value=String(Math.max(70,Math.min(600,v74Num(sl.value,180)+dir)));updateZoom();}
+    }else{
+      editorScrollSec=Math.max(0,editorScrollSec+e.deltaY/v74EffectivePx()*1.4);
+    }
+    v74UpdateHud();renderEditor();
+    e.preventDefault();e.stopImmediatePropagation();
+  }finally{setTimeout(()=>{v74WheelGuard=false},0)}
+}
+
+function v74HoldFix(){
+  const before=v74Clone();let fixed=0;
+  (currentNotes||[]).forEach(n=>{
+    if(n.isLong){
+      const st=v74Num(n.time),et=v74Num(n.endTime,st);
+      n.time=Math.max(0,Number(st.toFixed(3)));n.endTime=Math.max(n.time+0.05,Number(et.toFixed(3)));
+      if(!Number.isFinite(et)||et<=st){n.endTime=Number((n.time+Math.max(.1,v74Num(gridSnapSec,.05))).toFixed(3));}
+      fixed++;
+    }
+  });
+  v74Sort();v74Save();v74PushHistory('hold-fix');v74SetStatus('HOLD FIX • '+fixed+' HOLDS CHECKED');return before;
+}
+function v74ChordFix(){
+  const before=v74Clone();const notes=currentNotes||[];let groups=0,changed=0;
+  if(notes.length<2){v74SetStatus('CHORD FIX • NOT ENOUGH NOTES');return;}
+  v74Sort();
+  const threshold=Math.max(0.035,Math.min(0.12,v74Num(gridSnapSec,.05)*1.5));
+  let i=0;
+  while(i<notes.length){
+    let j=i+1;const group=[notes[i]];
+    while(j<notes.length&&Math.abs(v74Num(notes[j].time)-v74Num(notes[i].time))<=threshold){group.push(notes[j]);j++;}
+    if(group.length>1){
+      const target=v74Snap(group.reduce((a,n)=>a+v74Num(n.time),0)/group.length);groups++;
+      group.forEach(n=>{if(v74Num(n.time)!==target){const delta=target-v74Num(n.time);n.time=target;if(n.isLong&&n.endTime!==undefined)n.endTime=Number((v74Num(n.endTime)+delta).toFixed(3));changed++;}});
+    }
+    i=j;
+  }
+  v74Sort();v74Save();v74PushHistory('chord-fix');v74SetStatus('CHORD FIX • '+groups+' GROUPS / '+changed+' ADJUSTED');
+  return before;
+}
+function v74Dedupe(){
+  const before=v74Clone();const seen=new Set();let removed=0;
+  v74Sort();
+  currentNotes=currentNotes.filter(n=>{const k=v74Num(n.lane)+'@'+v74Num(n.time).toFixed(3);if(seen.has(k)){removed++;return false;}seen.add(k);return true;});
+  v74Save();v74PushHistory('dedupe');v74SetStatus('DEDUPE • '+removed+' REMOVED');return before;
+}
+function v74AutoRepair(){
+  v74PushHistory('auto-repair-before');let repaired=0;
+  currentNotes=(currentNotes||[]).filter(n=>n&&Number.isFinite(v74Num(n.lane,-1))&&v74Num(n.lane,-1)>=0&&v74Num(n.lane,-1)<=3&&Number.isFinite(v74Num(n.time,-1))&&v74Num(n.time,-1)>=0);
+  currentNotes.forEach(n=>{
+    n.lane=Math.max(0,Math.min(3,Math.round(v74Num(n.lane))));n.time=Math.max(0,Number(v74Num(n.time).toFixed(3)));
+    if(n.isLong){if(!Number.isFinite(v74Num(n.endTime,-1))||v74Num(n.endTime)<=n.time){n.endTime=Number((n.time+Math.max(.1,v74Num(gridSnapSec,.05))).toFixed(3));repaired++;}n.endTime=Math.max(n.time+.05,v74Num(n.endTime));}
+    if(!n.speedMult)n.speedMult=1;
+    if(n.effect===undefined)n.effect='none';
+    if(n.effectDuration===undefined)n.effectDuration=2;
+  });
+  v74Sort();v74Save();v74PushHistory('auto-repair-after');v74SetStatus('AUTO REPAIR • '+repaired+' FIXED');
+}
+
+/* Override only the visual editor renderer. Original renderer remains stored above. */
+renderEditor=function(){
+  if(activeScreen!=='editor')return;
+  v74EnsureUI();
+  const rect={width:eCanvas.clientWidth,height:eCanvas.clientHeight};
+  const ctx=eCtx;const w=rect.width,h=rect.height;
+  ctx.clearRect(0,0,w,h);
+  const laneW=w/4;const jy=v74JudgeY(h);const ep=v74EffectivePx();
+  ctx.fillStyle='#02030a';ctx.fillRect(0,0,w,h);
+  for(let i=0;i<4;i++){
+    const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'rgba(0,0,0,.15)');grad.addColorStop(1,glowColors[i]+'12');
+    ctx.fillStyle=grad;ctx.fillRect(i*laneW,0,laneW,h);
+    ctx.strokeStyle=glowColors[i]+'28';ctx.lineWidth=1;ctx.strokeRect(i*laneW,0,laneW,h);
+  }
+  const snap=Math.max(.01,v74Num(gridSnapSec,.05));
+  const first=Math.floor((editorScrollSec-3)/snap)*snap;
+  for(let t=first;t<=editorScrollSec+h/ep+2;t+=snap){
+    const y=jy-(t-editorScrollSec)*ep;if(y<-2||y>h+2)continue;
+    const isBeat=Math.abs((t/0.5)-Math.round(t/0.5))<0.001;
+    ctx.strokeStyle=isBeat?'rgba(255,255,255,.11)':'rgba(0,240,255,.055)';ctx.lineWidth=isBeat?1.5:1;
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+  }
+  ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(0,jy,w,h-jy);
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,jy);ctx.lineTo(w,jy);ctx.stroke();
+  ctx.strokeStyle='#00f0ff';ctx.globalAlpha=.25;ctx.beginPath();ctx.moveTo(0,jy-2);ctx.lineTo(w,jy-2);ctx.stroke();ctx.globalAlpha=1;
+
+  (currentNotes||[]).forEach((n,idx)=>{
+    const lane=Math.max(0,Math.min(3,Math.round(v74Num(n.lane))));const x=lane*laneW+6;const nw=laneW-12;
+    const y=jy-(v74Num(n.time)-editorScrollSec)*ep;
+    if(n.isLong&&n.endTime!==undefined){
+      const ey=jy-(v74Num(n.endTime)-editorScrollSec)*ep;const top=Math.min(y,ey);const hh=Math.abs(y-ey);
+      ctx.fillStyle=glowColors[lane]+'55';ctx.fillRect(x+10,top,nw-20,Math.max(5,hh));
+      ctx.strokeStyle=glowColors[lane]+'cc';ctx.strokeRect(x+10,top,nw-20,Math.max(5,hh));
+    }
+    if(y>-30&&y<h+30){
+      ctx.shadowBlur=idx===v74Selected?18:8;ctx.shadowColor=glowColors[lane];ctx.fillStyle=glowColors[lane];ctx.fillRect(x,y-7,nw,14);ctx.shadowBlur=0;
+      if(idx===v74Selected){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x-2,y-9,nw+4,18);}
+      ctx.fillStyle='#000';ctx.font='8px monospace';ctx.textAlign='left';ctx.fillText(n.isLong?'HOLD':'TAP',x+5,y+3);
+      if(n.effect&&n.effect!=='none'){ctx.fillStyle='#fff';ctx.font='7px monospace';ctx.fillText(String(n.effect).toUpperCase(),x+nw-54,y-10);}
+    }
+  });
+
+  ctx.font='9px "Press Start 2P"';ctx.textAlign='center';
+  for(let i=0;i<4;i++){ctx.fillStyle=glowColors[i]+'bb';ctx.fillText(userKeys[i].toUpperCase(),i*laneW+laneW/2,h-72);}
+  ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillText(v74Num(editorScrollSec).toFixed(3)+'s',w/2,jy+30);
+
+  const mins=Math.floor(v74Num(editorScrollSec)/60),secs=(v74Num(editorScrollSec)%60).toFixed(2);
+  const time=document.getElementById('editorTimeDisp');if(time)time.textContent=String(mins).padStart(2,'0')+':'+String(secs).padStart(5,'0');
+  v74UpdateHud();
+};
+
+/* Speed setting sync: editor follows gameplay speed without deleting the zoom control. */
+updateZoom=function(){
+  V74_OLD_UPDATE_ZOOM();
+  if(typeof pxPerSec!=='number'||!Number.isFinite(pxPerSec))pxPerSec=180;
+  pxPerSec=Math.max(70,Math.min(600,pxPerSec));
+  const sl=document.getElementById('zoomSlider');if(sl){sl.min='70';sl.max='600';sl.step='10';sl.value=String(pxPerSec);}
+  v74UpdateHud();
+};
+
+startEditor=function(){
+  V74_OLD_START_EDITOR();
+  currentNotes=v74Clone();v74Sort();
+  v74EnsureUI();
+  editorScrollSec=Math.max(0,Number(editorScrollSec)||0);
+  if(pxPerSec<70||pxPerSec>600)pxPerSec=180;
+  const sl=document.getElementById('zoomSlider');if(sl)sl.value=String(pxPerSec);
+  v74Selected=-1;v74SetMode('tap');v74SetStatus('EDITOR READY • SPEED SYNC '+v74Num(systemNoteSpeed,3).toFixed(1)+'x');
+  resizeEditorCanvas();
+  requestAnimationFrame(renderEditorLoop);
+};
+
+tryTestPlay=function(){
+  editorReturnState.scrollSec=Math.max(0,Number(editorScrollSec)||0);
+  editorReturnState.zoom=Math.max(70,Math.min(600,Number(pxPerSec)||180));
+  try{V74_OLD_TRY_TEST();}catch(err){testPlayMode=false;changeScreen('editor');}
+};
+
+/* Extra recovery after any Test Play exit. */
+const V74_OLD_FINISH_GAME = finishGame;
+finishGame=function(){
+  const wasTest=testPlayMode;
+  V74_OLD_FINISH_GAME();
+  if(wasTest||activeScreen==='editor'){
+    setTimeout(()=>{
+      if(activeScreen!=='editor')return;
+      editorScrollSec=Math.max(0,Number(editorReturnState.scrollSec)||0);
+      pxPerSec=Math.max(70,Math.min(600,Number(editorReturnState.zoom)||180));
+      currentNotes=v74Clone();v74Sort();
+      v74EnsureUI();resizeEditorCanvas();renderEditor();requestAnimationFrame(renderEditorLoop);
+      v74SetStatus('RETURNED FROM TEST PLAY • EDITOR RESTORED');
+    },20);
+  }
+};
+
+/* Keyboard tools: retain all previous handlers while adding editor-only shortcuts. */
+window.addEventListener('keydown',function(e){
+  if(activeScreen!=='editor')return;
+  if(e.target&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+  if(e.key==='1'){v74SetMode('tap');}
+  else if(e.key==='2'){v74SetMode('hold');}
+  else if(e.key==='3'){v74SetMode('select');}
+  else if(e.key==='['){v74SetSpeed(v74Num(systemNoteSpeed,3)-.2);}
+  else if(e.key===']'){v74SetSpeed(v74Num(systemNoteSpeed,3)+.2);}
+  else if(e.key==='F3'){e.preventDefault();v74ChordFix();}
+  else if(e.key==='F4'){e.preventDefault();v74HoldFix();}
+  else if(e.key==='F5'){e.preventDefault();v74AutoRepair();}
+},true);
+
+/* Keep editor visually live even after returning from another screen. */
+const V74_OLD_CHANGE_SCREEN=changeScreen;
+changeScreen=function(screenName){
+  V74_OLD_CHANGE_SCREEN(screenName);
+  if(screenName==='editor'){
+    setTimeout(()=>{v74EnsureUI();resizeEditorCanvas();v74UpdateHud();requestAnimationFrame(renderEditorLoop);},0);
+  }
+};
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{v74EnsureUI();updateZoom();},60));
+setTimeout(()=>{if(document.readyState!=='loading') {v74EnsureUI();updateZoom();}},120);
+})();
+</script>
