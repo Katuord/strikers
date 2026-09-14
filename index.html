@@ -203,18 +203,18 @@
         #sc-hidden-container { position: absolute; top: -9999px; left: -9999px; visibility: hidden; }
         #flash-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background:#fff; opacity:0; pointer-events:none; z-index:9000; transition: opacity 0.15s; display:none; }
         
-        /* RAINBOW & EQUINOX EFFECTS */
+        /* RAINBOW & EQUINOX EFFECTS (調整版) */
         @keyframes rainbowGlow {
-            0% { background-position: 0% 50%; opacity: 0; }
-            10% { opacity: 0.6; }
-            90% { opacity: 0.6; }
-            100% { background-position: 100% 50%; opacity: 0; }
+            0% { background-position: 0% 50%; filter: hue-rotate(0deg); opacity: 0; }
+            15% { opacity: 0.85; }
+            85% { opacity: 0.85; }
+            100% { background-position: 200% 50%; filter: hue-rotate(720deg); opacity: 0; }
         }
         @keyframes equinoxSpin {
             0% { transform: translate(-25%, -25%) rotate(0deg) scale(1); opacity: 0; }
-            10% { opacity: 0.8; transform: translate(-25%, -25%) rotate(10deg) scale(1.1); }
-            90% { opacity: 0.8; transform: translate(-25%, -25%) rotate(350deg) scale(1.1); }
-            100% { transform: translate(-25%, -25%) rotate(360deg) scale(1); opacity: 0; }
+            10% { opacity: 0.5; transform: translate(-25%, -25%) rotate(90deg) scale(1.1); }
+            90% { opacity: 0.5; transform: translate(-25%, -25%) rotate(1350deg) scale(1.1); }
+            100% { transform: translate(-25%, -25%) rotate(1440deg) scale(1); opacity: 0; }
         }
 
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
@@ -226,9 +226,9 @@
 
     <div id="flash-overlay"></div>
     
-    <!-- EFFECT OVERLAYS -->
-    <div id="rainbow-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none; background: linear-gradient(45deg, red, yellow, lime, cyan, blue, magenta, red); background-size: 400% 400%; mix-blend-mode: overlay;"></div>
-    <div id="equinox-overlay" style="position:fixed; top:0; left:0; width:200vw; height:200vh; transform: translate(-25%, -25%); pointer-events:none; z-index:8500; opacity:0; display:none; background: linear-gradient(90deg, rgba(0,0,0,0.9) 50%, rgba(255,255,255,0.9) 50%); mix-blend-mode: normal;"></div>
+    <!-- EFFECT OVERLAYS (Rainbow & Equinox 調整) -->
+    <div id="rainbow-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none; background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000); background-size: 300% 300%; mix-blend-mode: screen;"></div>
+    <div id="equinox-overlay" style="position:fixed; top:0; left:0; width:200vw; height:200vh; transform: translate(-25%, -25%); pointer-events:none; z-index:8500; opacity:0; display:none; background: linear-gradient(90deg, rgba(0,0,0,0.5) 50%, rgba(255,255,255,0.5) 50%); mix-blend-mode: normal;"></div>
 
     <div id="account-register-modal" class="modal-base">
         <div class="modal-box">
@@ -556,11 +556,11 @@
                     </select>
                 </div>
                 <!-- バックアップ用ボタン -->
-<div class="backup-section">
-  <button onclick="exportSaveData()">データをバックアップ(保存)</button>
-  <input type="file" id="importSaveData" accept=".json" onchange="importSaveData(event)" style="display:none;">
-  <button onclick="document.getElementById('importSaveData').click()">データを復元(読み込み)</button>
-</div>
+                <div class="backup-section" style="margin: 10px 0; display:flex; gap:8px;">
+                    <button class="sys-btn" style="flex:1;" onclick="exportSaveData()">データ保存</button>
+                    <input type="file" id="importSaveData" accept=".json" onchange="importSaveData(event)" style="display:none;">
+                    <button class="sys-btn" style="flex:1;" onclick="document.getElementById('importSaveData').click()">データ復元</button>
+                </div>
                 <div class="setting-row">
                     <label>HIT EFFECT</label>
                     <select id="effect-select" class="cyber-select">
@@ -627,7 +627,6 @@
         <iframe id="sc-player" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&amp;auto_play=false" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay"></iframe>
     </div>
 
-
    <!-- 分離した譜面データをここで読み込む -->
     <script src="Musicdata1.js"></script>
     <script src="Musicdata2.js" onerror="this.onerror=null; console.log('Musicdata2.js is not loaded or missing.');"></script>
@@ -635,9 +634,7 @@
     <script src="Musicdata4.js" onerror="this.onerror=null; console.log('Musicdata4.js is not loaded or missing.');"></script>
     <script src="Musicdata5.js" onerror="this.onerror=null; console.log('Musicdata5.js is not loaded or missing.');"></script>
 
-
     <script>
-
         // ==========================================
         // グローバル設定 & ステート
         // ==========================================
@@ -697,6 +694,10 @@
         let testPlayMode = false; 
 
         let lastFrameTimestamp = performance.now();
+
+        let rainbowTimer = null;
+        let equinoxTimer = null;
+        let shakeTimer = null;
 
         window.addEventListener('blur', () => {
             keysState.fill(false);
@@ -877,10 +878,59 @@
             document.getElementById('judge-pos-disp').innerText = userProfile.judgePosition;
         }
 
+        function exportSaveData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userProfile));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `Strikers_Save_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importSaveData(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    userProfile = { ...userProfile, ...imported };
+                    saveProfileToLocal();
+                    applyProfileUI();
+                    applyTheme(userProfile.theme);
+                    alert("データを復元しました。");
+                } catch(err) {
+                    alert("セーブデータの読み込みに失敗しました。");
+                }
+            };
+            if(event.target.files[0]) fileReader.readAsText(event.target.files[0]);
+        }
+
+        // ==========================================
+        // エフェクトの完全リセット関数
+        // ==========================================
+        function resetVisualEffects() {
+            if (rainbowTimer) clearTimeout(rainbowTimer);
+            if (equinoxTimer) clearTimeout(equinoxTimer);
+            if (shakeTimer) clearTimeout(shakeTimer);
+
+            const rb = document.getElementById('rainbow-overlay');
+            if (rb) { rb.style.display = 'none'; rb.style.animation = ''; }
+
+            const eq = document.getElementById('equinox-overlay');
+            if (eq) { eq.style.display = 'none'; eq.style.animation = ''; }
+
+            const wrapper = document.getElementById('game-wrapper-box');
+            if (wrapper) { wrapper.style.animation = ''; wrapper.style.transform = 'translate(0,0)'; }
+
+            applyTheme(userProfile.theme || 'cyber');
+        }
+
         // ==========================================
         // 画面切り替え & 管理
         // ==========================================
         function changeScreen(screenName) {
+            resetVisualEffects();
+
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(`${screenName}-screen`).classList.add('active');
             activeScreen = screenName;
@@ -888,9 +938,19 @@
             document.getElementById('sysHeaderId').style.display = ['select', 'title', 'result'].includes(screenName) ? 'flex' : 'none';
             document.getElementById('quitTriggerId').style.display = ['game', 'editor'].includes(screenName) ? 'block' : 'none';
 
-            if(scWidget && screenName !== 'game' && screenName !== 'editor') { scWidget.pause(); isTrackPlaying = false; }
             if(screenName !== 'editor' && isRecording) stopRecording();
-            if(screenName === 'select') scrollToActiveSong();
+            
+            if(screenName === 'select') {
+                scrollToActiveSong();
+                if (scWidget && currentSong) {
+                    scWidget.seekTo(0);
+                    scWidget.play();
+                    isTrackPlaying = true;
+                }
+            } else if (screenName !== 'game' && screenName !== 'editor') {
+                if(scWidget) scWidget.pause();
+                isTrackPlaying = false;
+            }
             
             if(screenName === 'game') {
                 document.getElementById('game-wrapper-box').classList.remove('game-flipped');
@@ -985,10 +1045,15 @@
             if (trackUrl.includes('soundcloud.com')) {
                 try {
                     scWidget.load(trackUrl, { 
-                        auto_play: false, show_artwork: false, 
+                        auto_play: activeScreen === 'select', show_artwork: false, 
                         callback: () => { 
                             unlockButton(); 
                             scWidget.setVolume(masterVolume);
+                            if (activeScreen === 'select') {
+                                scWidget.seekTo(0);
+                                scWidget.play();
+                                isTrackPlaying = true;
+                            }
                             scWidget.getCurrentSound((sound) => { updateJacketArtwork(sound); }); 
                         } 
                     });
@@ -1141,22 +1206,28 @@
             }
         }
         
-        // NEW EFFECTS TRIGGER FUNCTIONS
+        // 虹色・Equinox・シェイクのトリガー関数 (修正)
         function triggerRainbowEffect(duration) {
             const el = document.getElementById('rainbow-overlay');
             if(el) {
+                if (rainbowTimer) clearTimeout(rainbowTimer);
                 el.style.display = 'block';
+                el.style.animation = 'none';
+                void el.offsetWidth;
                 el.style.animation = `rainbowGlow ${duration}s linear forwards`;
-                setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+                rainbowTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
         }
         
         function triggerEquinoxEffect(duration) {
             const el = document.getElementById('equinox-overlay');
             if(el) {
+                if (equinoxTimer) clearTimeout(equinoxTimer);
                 el.style.display = 'block';
-                el.style.animation = `equinoxSpin ${duration}s ease-in-out forwards`;
-                setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
+                el.style.animation = 'none';
+                void el.offsetWidth;
+                el.style.animation = `equinoxSpin ${duration}s linear forwards`;
+                equinoxTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
         }
         
@@ -1164,8 +1235,9 @@
             if (userProfile.enableShake === 'off') return;
             const el = document.getElementById('game-wrapper-box');
             if(el) {
-                el.style.animation = `shakeAnim 0.1s linear infinite`;
-                setTimeout(() => { el.style.animation = ''; }, duration * 1000);
+                if (shakeTimer) clearTimeout(shakeTimer);
+                el.style.animation = `shakeAnim 0.08s linear infinite`;
+                shakeTimer = setTimeout(() => { el.style.animation = ''; el.style.transform = 'translate(0,0)'; }, duration * 1000);
             }
         }
 
@@ -1688,6 +1760,70 @@
             requestAnimationFrame(engineLoop);
         }
 
+        // キーボード入力処理のバインド
+        window.addEventListener('keydown', (e) => {
+            if (bindingLane !== -1) {
+                const key = e.key.toLowerCase();
+                userKeys[bindingLane] = key;
+                bindingLane = -1;
+                updateKeyBindUI();
+                saveProfileToLocal();
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                if (activeScreen === 'game') triggerQuitToSelect();
+                if (activeScreen === 'editor') triggerQuitToSelect();
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                if (activeScreen === 'game') toggleGamePause();
+                return;
+            }
+
+            if (activeScreen === 'editor' && e.code === 'Space') {
+                e.preventDefault();
+                toggleEditorAudio();
+                return;
+            }
+
+            const mapping = getKeyMapping();
+            const lane = mapping[e.key.toLowerCase()];
+            if (lane !== undefined && !keysState[lane]) {
+                keysState[lane] = true;
+                if (activeScreen === 'game' && !isGamePaused) {
+                    executeHitJudgment(lane);
+                }
+                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                    let snapTime = Math.round(editorScrollSec / gridSnapSec) * gridSnapSec;
+                    let newNote = {
+                        time: snapTime,
+                        lane: lane,
+                        speedMult: currentNoteSpeedMult,
+                        effect: currentNoteEffect,
+                        effectDuration: currentNoteEffectDur
+                    };
+                    recordingNotes[lane] = newNote;
+                    currentNotes.push(newNote);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const mapping = getKeyMapping();
+            const lane = mapping[e.key.toLowerCase()];
+            if (lane !== undefined) {
+                keysState[lane] = false;
+                if (activeScreen === 'game' && !isGamePaused) {
+                    executeReleaseJudgment(lane);
+                }
+                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                    finalizeRecordingNote(lane);
+                }
+            }
+        });
+
         // ==========================================
         // 初期化 & APIイベントバインド
         // ==========================================
@@ -1714,206 +1850,9 @@
                             if (activeScreen === 'editor' && isTrackPlaying) editorScrollSec = sec;
                         }
                     });
-                    scWidget.bind(SC.Widget.Events.FINISH, () => {
-                        isTrackPlaying = false;
-                        if (activeScreen === 'game') finishGame();
-                    });
-                } catch(e) { unlockButton(); }
-            } else {
-                if (window.songList && window.songList.length > 0) selectSong(0);
+                } catch(e) {}
             }
         });
-
-        // ==========================================
-        // エディタのマウス＆ホイール操作
-        // ==========================================
-        if (eCanvas) {
-            eCanvas.addEventListener('mousedown', (e) => {
-                if (activeScreen !== 'editor') return;
-                const rect = eCanvas.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
-
-                const laneW = 75;
-                const offsetX = Math.max((eCanvas.clientWidth - (laneW * 4)) / 2, 40);
-                const currentLineY = eCanvas.clientHeight - 120;
-
-                const lane = Math.floor((clickX - offsetX) / laneW);
-                if (lane >= 0 && lane < 4) {
-                    let noteTime = editorScrollSec + (currentLineY - clickY) / pxPerSec;
-                    if (gridSnapSec > 0) {
-                        noteTime = Math.round(noteTime / gridSnapSec) * gridSnapSec;
-                    }
-                    noteTime = Math.max(0, Math.round(noteTime * 100) / 100);
-
-                    const existingIdx = currentNotes.findIndex(n => n.lane === lane && Math.abs(n.time - noteTime) < 0.05);
-                    if (existingIdx !== -1) {
-                        currentNotes.splice(existingIdx, 1);
-                    } else {
-                        currentNotes.push({ 
-                            lane: lane, 
-                            time: noteTime, 
-                            isLong: false,
-                            speedMult: currentNoteSpeedMult,
-                            effect: currentNoteEffect,
-                            effectDuration: currentNoteEffectDur
-                        });
-                        currentNotes.sort((a, b) => a.time - b.time);
-                    }
-                    saveToGlobalChart();
-                }
-            });
-
-            eCanvas.addEventListener('wheel', (e) => {
-                if (activeScreen !== 'editor') return;
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                editorScrollSec = Math.max(0, editorScrollSec + delta);
-                if (scWidget && !isTrackPlaying) scWidget.seekTo(editorScrollSec * 1000);
-            }, { passive: false });
-        }
-
-        // ==========================================
-        // キーボード入力リスナー
-        // ==========================================
-        window.addEventListener('keydown', (e) => {
-            if (e.repeat) return;
-
-            if (bindingLane !== -1 && document.getElementById('settings-modal').classList.contains('show')) {
-                e.preventDefault(); 
-                userKeys[bindingLane] = e.key.toLowerCase(); 
-                bindingLane = -1; 
-                updateKeyBindUI(); 
-                return;
-            }
-
-            if (e.key === 'Escape') {
-                if (['game', 'editor'].includes(activeScreen)) { 
-                    e.preventDefault(); 
-                    triggerQuitToSelect(); 
-                    return; 
-                }
-            }
-            
-            if (e.key === 'Enter' && activeScreen === 'game') { 
-                e.preventDefault(); 
-                toggleGamePause(); 
-                return; 
-            }
-            
-            if (activeScreen === 'game') {
-                if (e.key === '+' || e.key === ';') { 
-                    systemNoteSpeed = Math.min(5.0, systemNoteSpeed + 0.1); 
-                    triggerJudgeNotice(`SPEED: ${systemNoteSpeed.toFixed(1)}`, "var(--accent-neon)"); 
-                    return; 
-                }
-                if (e.key === '-') { 
-                    systemNoteSpeed = Math.max(1.0, systemNoteSpeed - 0.1); 
-                    triggerJudgeNotice(`SPEED: ${systemNoteSpeed.toFixed(1)}`, "var(--accent-neon)"); 
-                    return; 
-                }
-            }
-
-            if (document.querySelector('.modal-base.show') && !document.getElementById('pause-overlay').classList.contains('show')) return;
-
-            const k = e.key.toLowerCase();
-            
-            if (activeScreen === 'select') {
-                if (e.key === 'ArrowUp') { 
-                    e.preventDefault(); 
-                    if (currentSongIndex > 0) selectSong(currentSongIndex - 1); 
-                } else if (e.key === 'ArrowDown') { 
-                    e.preventDefault(); 
-                    if (currentSongIndex < window.songList.length - 1) selectSong(currentSongIndex + 1); 
-                } else if (e.key === 'Enter') { 
-                    e.preventDefault(); 
-                    const startBtn = document.getElementById('startPlayBtn');
-                    if (startBtn && !startBtn.disabled) startGame();
-                }
-                return;
-            }
-
-            const keyMap = getKeyMapping();
-            const lane = keyMap[k];
-
-            if (activeScreen === 'game' && lane !== undefined) {
-                if (!keysState[lane]) {
-                    keysState[lane] = true;
-                    if (!isAutoPlay) executeHitJudgment(lane);
-                }
-            }
-
-            if (activeScreen === 'editor') {
-                if (e.code === 'Space') {
-                    e.preventDefault();
-                    toggleEditorAudio();
-                } else if (lane !== undefined) {
-                    if (!keysState[lane]) {
-                        keysState[lane] = true;
-                        if (isRecording && !isRecordingPaused) {
-                            let snapTime = Math.round(editorScrollSec / gridSnapSec) * gridSnapSec;
-                            if (isNaN(snapTime)) snapTime = editorScrollSec;
-                            recordingNotes[lane] = { 
-                                lane: lane, 
-                                time: snapTime, 
-                                isLong: false,
-                                speedMult: currentNoteSpeedMult,
-                                effect: currentNoteEffect,
-                                effectDuration: currentNoteEffectDur
-                            };
-                            currentNotes.push(recordingNotes[lane]);
-                        }
-                    }
-                }
-            }
-        });
-
-        // セーブデータをファイルとして保存（エクスポート）
-        function exportSaveData() {
-            const data = JSON.stringify(localStorage);
-            const blob = new Blob([data], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'strikers_savedata.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            alert('セーブデータを保存しました。アカウントが消えた際はこのファイルを読み込んでください。');
-        }
-
-        // セーブデータをファイルから復元（インポート）
-        function importSaveData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    // 既存のデータをクリアして復元
-                    localStorage.clear();
-                    for (let key in data) {
-                        localStorage.setItem(key, data[key]);
-                    }
-                    alert('データの復元が完了しました。ページをリロードします。');
-                    location.reload();
-                } catch (error) {
-                    alert('データの読み込みに失敗しました。ファイルが間違っている可能性があります。');
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        window.addEventListener('keyup', (e) => {
-            const k = e.key.toLowerCase();
-            const keyMap = getKeyMapping();
-            const lane = keyMap[k];
-            if (lane !== undefined) {
-                keysState[lane] = false;
-                if (activeScreen === 'game' && !isAutoPlay) executeReleaseJudgment(lane);
-                if (activeScreen === 'editor' && isRecording && !isRecordingPaused) finalizeRecordingNote(lane);
-            }
-        });
-
     </script>
 </body>
 </html>
