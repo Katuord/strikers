@@ -85,7 +85,6 @@
         .game-flipped { transform: rotate(180deg); }
         .game-wrapper { position: relative; width: 520px; max-width: 100vw; height: 100vh; background: rgba(0,2,10,0.85); border-left: 2px solid var(--border-line); border-right: 2px solid var(--border-line); overflow: hidden; transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); box-shadow: 0 0 50px rgba(0,240,255,0.1); }
         
-        /* SHAKE ANIMATION */
         @keyframes shakeAnim {
             0% { transform: translate(12px, 12px); }
             25% { transform: translate(-12px, -12px); }
@@ -206,7 +205,6 @@
         /* =========================================================
            RAINBOW, EQUINOX, NEW FX ANIMATIONS
            ========================================================= */
-        /* Rainbow: 回転なし・超高速色変化 */
         #rainbow-overlay {
             position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none;
             background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000);
@@ -220,13 +218,11 @@
             100% { background-position: 400% 50%; filter: hue-rotate(3600deg); opacity: 0; }
         }
 
-        /* Equinox: 白色の角を強調・爆速回転・0.35秒周期白黒反転 */
+        /* Equinox: 回転しても画面端まで完全に覆う (250vmax, ボーダーや外枠強調を削除) */
         #equinox-overlay {
-            position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vw;
-            margin-top: -75vw; margin-left: -75vw; pointer-events:none; z-index:8500; opacity:0; display:none;
+            position: fixed; top: 50%; left: 50%; width: 250vmax; height: 250vmax;
+            margin-top: -125vmax; margin-left: -125vmax; pointer-events:none; z-index:8500; opacity:0; display:none;
             background: repeating-conic-gradient(#000000 0deg 45deg, #ffffff 45deg 90deg);
-            border: 40px solid #ffffff;
-            box-shadow: 0 0 80px #ffffff, inset 0 0 80px #ffffff;
             mix-blend-mode: difference;
         }
         @keyframes equinoxSpinFast {
@@ -240,7 +236,6 @@
             50%, 100% { filter: invert(1); }
         }
 
-        /* NEW VISUAL EFFECTS */
         #glitch-overlay {
             position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8600; opacity:0; display:none;
             background: repeating-linear-gradient(0deg, rgba(0,240,255,0.3) 0px, transparent 2px, rgba(255,0,85,0.3) 4px);
@@ -286,7 +281,7 @@
 
     <div id="flash-overlay"></div>
     
-    <!-- EFFECT OVERLAYS (Rainbow, Equinox, Glitch, Hyperdrive, Strobe) -->
+    <!-- EFFECT OVERLAYS -->
     <div id="rainbow-overlay"></div>
     <div id="equinox-overlay"></div>
     <div id="glitch-overlay"></div>
@@ -425,7 +420,6 @@
                 </div>
             </div>
 
-            <!-- EFFECT CONTROLS -->
             <div class="editor-controls-group">
                 <div style="font-size:9px; color:#ff0055; font-family: 'Press Start 2P'; margin-bottom: 4px;">✨ NOTE FX & SPEED</div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -694,6 +688,7 @@
     </div>
 
     <!-- 外部譜面データの読み込み -->
+    <script>window.songList = window.songList || [];</script>
     <script src="Musicdata1.js"></script>
     <script src="Musicdata2.js" onerror="this.onerror=null; console.log('Musicdata2.js is not loaded or missing.');"></script>
     <script src="Musicdata3.js" onerror="this.onerror=null; console.log('Musicdata3.js is not loaded or missing.');"></script>
@@ -701,9 +696,7 @@
     <script src="Musicdata5.js" onerror="this.onerror=null; console.log('Musicdata5.js is not loaded or missing.');"></script>
 
     <script>
-        // ==========================================
         // グローバル設定 & ステート
-        // ==========================================
         let gridSnapSec = 0.05;
         let pxPerSec = 400; 
         
@@ -724,7 +717,7 @@
         }
 
         let currentSongIndex = 0; 
-        let currentSong = window.songList ? window.songList[0] : null;
+        let currentSong = (window.songList && window.songList.length > 0) ? window.songList[0] : null;
         let currentDiff = 'normal'; 
         let currentNotes = [];
         let activeScreen = 'title';
@@ -775,9 +768,7 @@
             }
         });
 
-        // ==========================================
         // オーディオ制御 (Web Audio API)
-        // ==========================================
         let audioCtx;
         let isAssistTick = false;
 
@@ -827,9 +818,7 @@
             return { width: rect.width, height: rect.height };
         }
 
-        // ==========================================
         // ユーザープロファイル & 設定永続化
-        // ==========================================
         let userProfile = { 
             username: "", displayName: "GUEST", avatarUrl: "",
             level: 1, xp: 0, highScores: {},
@@ -974,9 +963,7 @@
             if(event.target.files[0]) fileReader.readAsText(event.target.files[0]);
         }
 
-        // ==========================================
         // エフェクト リセット関数
-        // ==========================================
         function resetVisualEffects() {
             if (rainbowTimer) clearTimeout(rainbowTimer);
             if (equinoxTimer) clearTimeout(equinoxTimer);
@@ -1006,9 +993,7 @@
             applyTheme(userProfile.theme || 'cyber');
         }
 
-        // ==========================================
         // 画面切り替え & 管理
-        // ==========================================
         function changeScreen(screenName) {
             resetVisualEffects();
 
@@ -1077,13 +1062,12 @@
             else { box.classList.remove('active'); status.innerText = "OFF"; status.style.color = "var(--text-sub)"; }
         }
 
-        // ==========================================
         // 選曲リスト & SoundCloud API
-        // ==========================================
         function buildSongList() {
             const container = document.getElementById('songListId');
             if(!container) return;
             container.innerHTML = "";
+            
             if(!window.songList || window.songList.length === 0) return;
 
             window.songList.forEach((song, index) => {
@@ -1111,7 +1095,8 @@
         }
 
         function selectSong(index) {
-            currentSongIndex = index; currentSong = window.songList[currentSongIndex];
+            currentSongIndex = index; 
+            currentSong = window.songList[currentSongIndex];
             buildSongList();
             const startBtn = document.getElementById('startPlayBtn');
             if(startBtn) { startBtn.disabled = true; startBtn.innerText = "LOADING..."; }
@@ -1194,9 +1179,7 @@
             localStorage.setItem(localChartKey, JSON.stringify(currentNotes));
         }
 
-        // ==========================================
         // ゲームエンジン & メインループ
-        // ==========================================
         function startGame() {
             initAudio();
             const sourceData = safeLoadChart();
@@ -1287,7 +1270,6 @@
             }
         }
         
-        // 演出トリガー関数（Rainbow・Equinox・Shake・新規エフェクト）
         function triggerRainbowEffect(duration) {
             const el = document.getElementById('rainbow-overlay');
             if(el) {
@@ -1307,7 +1289,6 @@
                 el.style.display = 'block';
                 el.style.animation = 'none';
                 void el.offsetWidth;
-                // 高速回転 ＋ 0.35秒周期の白黒反転（0.7秒アニメーションを無限リピート）
                 el.style.animation = `equinoxSpinFast ${duration}s linear forwards, equinoxInvertSwap 0.70s steps(1) infinite`;
                 equinoxTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
             }
@@ -1422,7 +1403,6 @@
                 let rem = note.time - trackCurrentTime + audioOffset;
                 if (rem > -0.2 && !note.hitEnd && (!note.hit || note.isLong)) notesRemaining = true;
                 
-                // Effect trigger logic
                 if (rem <= 0 && !note.effectTriggered) {
                     note.effectTriggered = true;
                     if (note.effect === 'rainbow') triggerRainbowEffect(note.effectDuration || 2);
@@ -1446,7 +1426,6 @@
                 }
 
                 let x = note.lane * laneW;
-                
                 let spdMult = note.speedMult || 1.0;
                 let adjustedWindow = noteTimeWindow / spdMult;
 
@@ -1602,380 +1581,481 @@
             else grooveEl.classList.remove('groove-overheat');
         }
 
-        // ==========================================
+        // メインゲームループ
+        function engineLoop(timestamp) {
+            if (activeScreen !== 'game') return;
+            let delta = (timestamp - lastFrameTimestamp) / 1000;
+            lastFrameTimestamp = timestamp;
+
+            if (!isGamePaused && isTrackPlaying && scWidget) {
+                scWidget.getPosition((pos) => {
+                    trackCurrentTime = pos / 1000;
+                });
+            }
+
+            renderGame();
+            if (activeScreen === 'game') {
+                requestAnimationFrame(engineLoop);
+            }
+        }
+
         // 譜面エディタ
-        // ==========================================
         function startEditor() {
-            initAudio(); currentNotes = safeLoadChart(); editorScrollSec = 0; changeScreen('editor'); 
+            initAudio(); 
+            currentNotes = safeLoadChart(); 
+            editorScrollSec = 0; 
+            changeScreen('editor'); 
             if(scWidget) { 
                 scWidget.setVolume(masterVolume);
-                scWidget.seekTo(0); 
-                scWidget.pause(); 
-                document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE"; 
+                scWidget.seekTo(0);
+                scWidget.pause();
             }
             isTrackPlaying = false;
-            lastFrameTimestamp = performance.now();
-            requestAnimationFrame(engineLoop);
-        }
-
-        function toggleRecAction() { initAudio(); if (!isRecording) startRecordingFromZero(); else stopRecording(); }
-
-        function startRecordingFromZero() {
-            isRecording = true; isRecordingPaused = false;
-            const btn = document.getElementById('recordBtn'); btn.innerHTML = "🔴 REC STOP"; btn.classList.add('recording');
-            const pauseBtn = document.getElementById('recordPauseBtn');
-            if(pauseBtn) { pauseBtn.style.display = 'inline-block'; pauseBtn.innerHTML = "⏸ PAUSE"; }
-            
-            editorScrollSec = 0; trackCurrentTime = 0;
-            if (scWidget) { scWidget.seekTo(0); scWidget.play(); }
-            isTrackPlaying = true; document.getElementById('editPlayBtn').innerHTML = "⏸ PAUSE AUDIO";
-        }
-
-        function pauseResumeRecording() {
-            if (!isRecording) return;
-            isRecordingPaused = !isRecordingPaused;
-            const pauseBtn = document.getElementById('recordPauseBtn');
-            if (isRecordingPaused) {
-                if (scWidget) scWidget.pause(); isTrackPlaying = false;
-                if(pauseBtn) pauseBtn.innerHTML = "▶ RESUME";
-            } else {
-                if (scWidget) { scWidget.seekTo(editorScrollSec * 1000); scWidget.play(); }
-                isTrackPlaying = true; lastFrameTimestamp = performance.now();
-                if(pauseBtn) pauseBtn.innerHTML = "⏸ PAUSE";
-            }
-        }
-
-        function stopRecording() {
-            isRecording = false; isRecordingPaused = false;
-            const btn = document.getElementById('recordBtn'); btn.innerHTML = "🔴 REC START"; btn.classList.remove('recording');
-            const pauseBtn = document.getElementById('recordPauseBtn'); if(pauseBtn) pauseBtn.style.display = 'none';
-            
-            for(let i=0; i<4; i++) finalizeRecordingNote(i);
-            if (scWidget && isTrackPlaying) { scWidget.pause(); isTrackPlaying = false; }
-            document.getElementById('editPlayBtn').innerHTML = "▶ PLAY/PAUSE";
-        }
-
-        function toggleEditorAudio() {
-            initAudio(); if(!scWidget) return;
-            if(isTrackPlaying) {
-                scWidget.pause(); isTrackPlaying = false; document.getElementById('editPlayBtn').innerText = "▶ PLAY/PAUSE";
-                if (isRecording && !isRecordingPaused) pauseResumeRecording();
-            } else {
-                scWidget.seekTo(editorScrollSec * 1000); scWidget.play(); isTrackPlaying = true; lastFrameTimestamp = performance.now(); document.getElementById('editPlayBtn').innerText = "⏸ PAUSE AUDIO";
-            }
+            resizeEditorCanvas();
+            renderEditor();
         }
 
         function renderEditor() {
+            if (activeScreen !== 'editor') return;
             const rect = { width: eCanvas.clientWidth, height: eCanvas.clientHeight };
-            eCtx.fillStyle = '#03030c'; eCtx.fillRect(0, 0, rect.width, rect.height);
-            if (rect.width === 0) return;
+            eCtx.clearRect(0, 0, rect.width, rect.height);
 
-            const laneW = 75; const offsetX = Math.max((rect.width - (laneW*4)) / 2, 40); const currentLineY = rect.height - 120;
+            const laneW = rect.width / 4;
+            
+            // レーン描画
+            eCtx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+            eCtx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                eCtx.beginPath();
+                eCtx.moveTo(i * laneW, 0);
+                eCtx.lineTo(i * laneW, rect.height);
+                eCtx.stroke();
+            }
 
-            if (showHandGuide) {
-                eCtx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                eCtx.fillRect(offsetX, currentLineY - 20, laneW * 4, 150);
-                eCtx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-                eCtx.strokeRect(offsetX, currentLineY - 20, laneW * 4, 150);
-                eCtx.fillStyle = 'rgba(0, 240, 255, 0.5)';
-                eCtx.font = '10px "Press Start 2P"';
-                eCtx.fillText("✋ HAND PLACEMENT GUIDE ✋", offsetX + laneW*2 - 110, currentLineY + 60);
-                
-                for(let i=0; i<4; i++) {
-                    eCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            // スナップグリッド描画
+            if (gridSnapSec > 0) {
+                eCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                let startSec = editorScrollSec;
+                let endSec = editorScrollSec + (rect.height / pxPerSec);
+                let firstGrid = Math.floor(startSec / gridSnapSec) * gridSnapSec;
+                for (let t = firstGrid; t <= endSec; t += gridSnapSec) {
+                    let y = rect.height - ((t - editorScrollSec) * pxPerSec);
                     eCtx.beginPath();
-                    eCtx.arc(offsetX + i*laneW + laneW/2, currentLineY + 90, 20, 0, Math.PI*2);
-                    eCtx.fill();
+                    eCtx.moveTo(0, y);
+                    eCtx.lineTo(rect.width, y);
+                    eCtx.stroke();
                 }
             }
 
-            if(isRecording && isTrackPlaying && !isRecordingPaused) {
-                for(let i=0; i<4; i++) {
-                    if(recordingNotes[i]) {
-                        let calcTime = Math.round(editorScrollSec * 20) / 20;
-                        if(calcTime - recordingNotes[i].time > 0.25) { recordingNotes[i].isLong = true; recordingNotes[i].endTime = calcTime; }
-                    }
+            // ノーツ描画
+            currentNotes.forEach((note) => {
+                let y = rect.height - ((note.time - editorScrollSec) * pxPerSec);
+                let x = note.lane * laneW;
+
+                if (note.isLong && note.endTime !== undefined) {
+                    let yEnd = rect.height - ((note.endTime - editorScrollSec) * pxPerSec);
+                    eCtx.fillStyle = 'rgba(0, 240, 255, 0.4)';
+                    eCtx.fillRect(x + 8, yEnd, laneW - 16, y - yEnd);
+                    eCtx.fillStyle = '#fff';
+                    eCtx.fillRect(x + 4, yEnd - 4, laneW - 8, 8);
                 }
-            }
 
-            for(let i=0; i<4; i++) {
-                eCtx.strokeStyle = 'rgba(255,255,255,0.08)'; eCtx.strokeRect(offsetX + i*laneW, 0, laneW, rect.height);
-                if(isRecording && !isRecordingPaused && keysState[i]) { eCtx.fillStyle = 'rgba(0,240,255,0.12)'; eCtx.fillRect(offsetX + i*laneW, 0, laneW, rect.height); }
-            }
+                eCtx.fillStyle = glowColors[note.lane];
+                eCtx.fillRect(x + 4, y - 6, laneW - 8, 12);
 
-            let start = Math.max(0, editorScrollSec - (rect.height - currentLineY)/pxPerSec);
-            let end = editorScrollSec + currentLineY / pxPerSec;
-
-            for(let t = Math.floor(start*10)/10; t<=end; t+=0.1) {
-                let y = currentLineY - (t - editorScrollSec) * pxPerSec;
-                if(y < 0 || y > rect.height) continue;
-                if(Math.abs(t % 1.0) < 0.01) {
-                    eCtx.beginPath(); eCtx.strokeStyle = '#fff'; eCtx.moveTo(offsetX, y); eCtx.lineTo(offsetX + laneW*4, y); eCtx.stroke();
-                    eCtx.fillStyle = '#fff'; eCtx.font = '9px "Press Start 2P"'; eCtx.fillText(t.toFixed(1) + "s", offsetX - 50, y + 3);
-                }
-            }
-
-            eCtx.strokeStyle = isRecording && !isRecordingPaused ? '#ff0055' : 'var(--accent-neon)'; eCtx.lineWidth = 2;
-            eCtx.beginPath(); eCtx.moveTo(offsetX - 15, currentLineY); eCtx.lineTo(offsetX + laneW*4 + 15, currentLineY); eCtx.stroke(); eCtx.lineWidth = 1;
-
-            currentNotes.forEach(note => {
-                let yStart = currentLineY - (note.time - editorScrollSec) * pxPerSec;
-                let x = offsetX + note.lane * laneW;
-
-                if (note.isLong && note.endTime) {
-                    let yEnd = currentLineY - (note.endTime - editorScrollSec) * pxPerSec;
-                    eCtx.fillStyle = `rgba(0,240,255,0.35)`; 
-                    eCtx.fillRect(x + 18, yEnd, laneW - 36, yStart - yEnd);
-                }
-                if(yStart >= -20 && yStart <= rect.height + 20) {
-                    eCtx.fillStyle = '#fff'; 
-                    if(note.effect && note.effect !== 'none') eCtx.fillStyle = '#ff0055';
-                    eCtx.fillRect(x + 5, yStart - 4, laneW - 10, 8);
+                if (note.effect && note.effect !== 'none') {
+                    eCtx.fillStyle = '#ff0055';
+                    eCtx.font = '9px Press Start 2P';
+                    eCtx.fillText(note.effect.substring(0, 4).toUpperCase(), x + 8, y - 8);
                 }
             });
-        }
 
-        function finalizeRecordingNote(lane) {
-            if (recordingNotes[lane]) { 
-                currentNotes.sort((a,b) => a.time - b.time); 
-                recordingNotes[lane] = null; 
-                saveToGlobalChart(); 
+            // タイムバー
+            let timeY = rect.height - ((trackCurrentTime - editorScrollSec) * pxPerSec);
+            eCtx.strokeStyle = 'var(--accent-pink)';
+            eCtx.lineWidth = 2;
+            eCtx.beginPath();
+            eCtx.moveTo(0, timeY);
+            eCtx.lineTo(rect.width, timeY);
+            eCtx.stroke();
+
+            // ハンド配置ガイド
+            if (showHandGuide) {
+                eCtx.font = '16px Press Start 2P';
+                eCtx.fillStyle = '#00ff88';
+                for (let i = 0; i < 4; i++) {
+                    let keyName = (userKeys[i] || '').toUpperCase();
+                    eCtx.fillText(keyName, i * laneW + laneW / 2 - 8, rect.height - 20);
+                }
             }
+
+            // エディタ時間表示
+            let m = Math.floor(trackCurrentTime / 60);
+            let s = (trackCurrentTime % 60).toFixed(2);
+            document.getElementById('editorTimeDisp').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(5,'0')}`;
         }
 
-        function clearCurrentChart() { if(confirm("全ノーツデータを消去しますか？")) { currentNotes.length = 0; saveToGlobalChart(); } }
+        // イベントリスナー (キー入力)
+        let waitingForKeyIndex = null;
 
-        function tryTestPlay() {
-            if(currentNotes.length === 0) { alert("ノーツがありません。"); return; }
-            testPlayMode = true;
-            currentNotes.forEach(n => { n.hit = false; n.missed = false; n.isHolding = false; n.hitEnd = false; n.played = false; n.effectTriggered = false; });
-            gameScore = 0; gameCombo = 0; maxCombo = 0; grooveGauge = 80; countPerf = 0; countGreat = 0; countGood = 0; countMiss = 0;
-            hitEffects = []; particles = []; trackCurrentTime = 0; isGamePaused = false;
-            document.getElementById('autoplay-badge').style.display = 'block'; document.getElementById('autoplay-badge').innerText = "TEST PLAY";
-            changeScreen('game');
-            resizeGameCanvas();
-            updateHUD();
-            if(scWidget) { scWidget.seekTo(0); scWidget.play(); } isTrackPlaying = true; lastFrameTimestamp = performance.now();
-        }
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            const key = e.key.toLowerCase();
+            
+            if (waitingForKeyIndex !== null) {
+                userKeys[waitingForKeyIndex] = key;
+                document.getElementById(`key-bind-${waitingForKeyIndex}`).innerText = key.toUpperCase();
+                document.getElementById(`key-bind-${waitingForKeyIndex}`).classList.remove('waiting');
+                waitingForKeyIndex = null;
+                saveProfileToLocal();
+                return;
+            }
 
-        let currentIoMode = 'export';
-        function openExportModal() { currentIoMode = 'export'; document.getElementById('ioModalTitle').innerText = "EXPORT"; document.getElementById('io-action-btn').innerText = "COPY"; document.getElementById('io-textarea').value = JSON.stringify(currentNotes); document.getElementById('chart-io-modal').classList.add('show'); }
-        function openImportModal() { currentIoMode = 'import'; document.getElementById('ioModalTitle').innerText = "IMPORT"; document.getElementById('io-action-btn').innerText = "IMPORT"; document.getElementById('io-textarea').value = ""; document.getElementById('chart-io-modal').classList.add('show'); }
-        function closeIoModal() { document.getElementById('chart-io-modal').classList.remove('show'); }
-        function executeIoAction() {
-            if (currentIoMode === 'export') { document.getElementById('io-textarea').select(); document.execCommand('copy'); alert("コピーしました"); closeIoModal();
-            } else { try { const parsed = JSON.parse(document.getElementById('io-textarea').value); if(Array.isArray(parsed)) { currentNotes.splice(0, currentNotes.length, ...parsed); currentNotes.sort((a,b) => a.time - b.time); saveToGlobalChart(); alert("インポート成功"); closeIoModal(); } } catch(e) { alert("JSON解析エラー"); } }
-        }
+            if (e.key === 'Escape') {
+                if (activeScreen === 'game') triggerQuitToSelect();
+                else if (activeScreen === 'editor') changeScreen('select');
+                return;
+            }
 
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector(`.tab-btn[onclick="switchTab('${tabId}')"]`).classList.add('active');
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-        }
+            if (e.key === 'Enter') {
+                if (activeScreen === 'game') toggleGamePause();
+                return;
+            }
 
-        function openHelpModal() { document.getElementById('help-modal').classList.add('show'); }
-        function closeHelpModal() { document.getElementById('help-modal').classList.remove('show'); }
+            if (activeScreen === 'game' && !isGamePaused) {
+                const lane = getKeyMapping()[key];
+                if (lane !== undefined) {
+                    keysState[lane] = true;
+                    if (!isAutoPlay) executeHitJudgment(lane);
+                }
+            } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                const lane = getKeyMapping()[key];
+                if (lane !== undefined) {
+                    recordingNotes[lane] = { lane: lane, time: trackCurrentTime, isLong: false };
+                }
+            }
+        });
 
-        function openSettingsModal() { 
-            buildSpeedControls(); 
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (activeScreen === 'game' && !isGamePaused) {
+                const lane = getKeyMapping()[key];
+                if (lane !== undefined) {
+                    keysState[lane] = false;
+                    if (!isAutoPlay) executeReleaseJudgment(lane);
+                }
+            } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
+                const lane = getKeyMapping()[key];
+                if (lane !== undefined && recordingNotes[lane]) {
+                    let startNote = recordingNotes[lane];
+                    let dur = trackCurrentTime - startNote.time;
+                    if (dur > 0.15) {
+                        currentNotes.push({
+                            lane: lane,
+                            time: startNote.time,
+                            isLong: true,
+                            endTime: trackCurrentTime,
+                            speedMult: currentNoteSpeedMult,
+                            effect: currentNoteEffect,
+                            effectDuration: currentNoteEffectDur
+                        });
+                    } else {
+                        currentNotes.push({
+                            lane: lane,
+                            time: startNote.time,
+                            isLong: false,
+                            speedMult: currentNoteSpeedMult,
+                            effect: currentNoteEffect,
+                            effectDuration: currentNoteEffectDur
+                        });
+                    }
+                    recordingNotes[lane] = null;
+                    saveToGlobalChart();
+                    renderEditor();
+                }
+            }
+        });
+
+        // エディタのマウス操作
+        eCanvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            editorScrollSec = Math.max(0, editorScrollSec + (e.deltaY > 0 ? -0.2 : 0.2));
+            renderEditor();
+        });
+
+        let isDraggingEditor = false;
+        let dragStartY = 0;
+        let dragStartScroll = 0;
+
+        eCanvas.addEventListener('mousedown', (e) => {
+            const rect = eCanvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const laneW = rect.width / 4;
+            const lane = Math.floor(clickX / laneW);
+
+            if (e.button === 0) {
+                let clickedTime = editorScrollSec + ((rect.height - clickY) / pxPerSec);
+                if (gridSnapSec > 0) {
+                    clickedTime = Math.round(clickedTime / gridSnapSec) * gridSnapSec;
+                }
+                
+                let existingIndex = currentNotes.findIndex(n => n.lane === lane && Math.abs(n.time - clickedTime) < 0.1);
+                if (existingIndex !== -1) {
+                    currentNotes.splice(existingIndex, 1);
+                } else {
+                    currentNotes.push({
+                        lane: lane,
+                        time: clickedTime,
+                        isLong: false,
+                        speedMult: currentNoteSpeedMult,
+                        effect: currentNoteEffect,
+                        effectDuration: currentNoteEffectDur
+                    });
+                }
+                saveToGlobalChart();
+                renderEditor();
+            } else if (e.button === 2) {
+                isDraggingEditor = true;
+                dragStartY = e.clientY;
+                dragStartScroll = editorScrollSec;
+            }
+        });
+
+        eCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingEditor) {
+                let diffY = e.clientY - dragStartY;
+                editorScrollSec = Math.max(0, dragStartScroll + (diffY / pxPerSec));
+                renderEditor();
+            }
+        });
+
+        window.addEventListener('mouseup', () => { isDraggingEditor = false; });
+
+        // モーダル & UI制御
+        function openSettingsModal() {
             document.getElementById('set-username').value = userProfile.username || '';
             document.getElementById('set-displayname').value = userProfile.displayName || '';
             document.getElementById('set-avatarurl').value = userProfile.avatarUrl || '';
             document.getElementById('stat-playcount').innerText = userProfile.playCount || 0;
             document.getElementById('stat-totalscore').innerText = (userProfile.totalScore || 0).toLocaleString();
             
-            document.getElementById('offset-input').value = audioOffset;
-            document.getElementById('effect-select').value = userProfile.showEffects !== false ? 'on' : 'off';
-            
             document.getElementById('theme-select').value = userProfile.theme || 'cyber';
             document.getElementById('noteskin-select').value = userProfile.noteSkin || 'classic';
-            document.getElementById('bganim-select').value = userProfile.bgAnim !== false ? 'on' : 'off';
-            document.getElementById('vol-slider').value = masterVolume;
-            document.getElementById('vol-disp').innerText = masterVolume;
-            document.getElementById('se-vol-slider').value = seVolume;
-            document.getElementById('se-vol-disp').innerText = seVolume;
-            
+            document.getElementById('effect-select').value = userProfile.showEffects ? 'on' : 'off';
+            document.getElementById('bganim-select').value = userProfile.bgAnim ? 'on' : 'off';
+            document.getElementById('shake-select').value = userProfile.enableShake || 'on';
+            document.getElementById('flash-select').value = userProfile.enableFlash || 'on';
+
             document.getElementById('mirror-select').value = userProfile.mirror || 'off';
             document.getElementById('random-select').value = userProfile.random || 'off';
             document.getElementById('judge-pos-slider').value = userProfile.judgePosition || 580;
             document.getElementById('judge-pos-disp').innerText = userProfile.judgePosition || 580;
             document.getElementById('earlylate-select').value = userProfile.showEarlyLate || 'on';
             document.getElementById('lanecover-select').value = userProfile.laneCover || 'off';
-            document.getElementById('shake-select').value = userProfile.enableShake || 'on';
-            document.getElementById('flash-select').value = userProfile.enableFlash || 'on';
 
-            previewTheme();
-            updateKeyBindUI();
-            switchTab('profile'); document.getElementById('settings-modal').classList.add('show'); 
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`key-bind-${i}`);
+                if (btn) btn.innerText = (userKeys[i] || '').toUpperCase();
+            }
+
+            document.getElementById('settings-modal').classList.add('show');
         }
 
-        function closeSettingsModal() { 
+        function closeSettingsModal() {
             userProfile.username = document.getElementById('set-username').value.trim();
-            userProfile.displayName = document.getElementById('set-displayname').value.trim();
+            userProfile.displayName = document.getElementById('set-displayname').value.trim() || userProfile.username;
             userProfile.avatarUrl = document.getElementById('set-avatarurl').value.trim();
-            userProfile.showEffects = document.getElementById('effect-select').value === 'on';
+
             userProfile.theme = document.getElementById('theme-select').value;
             userProfile.noteSkin = document.getElementById('noteskin-select').value;
+            userProfile.showEffects = document.getElementById('effect-select').value === 'on';
             userProfile.bgAnim = document.getElementById('bganim-select').value === 'on';
-            audioOffset = parseFloat(document.getElementById('offset-input').value) || 0;
-            userProfile.mirror = document.getElementById('mirror-select').value;
-            userProfile.random = document.getElementById('random-select').value;
-            userProfile.showEarlyLate = document.getElementById('earlylate-select').value;
-            userProfile.laneCover = document.getElementById('lanecover-select').value;
             userProfile.enableShake = document.getElementById('shake-select').value;
             userProfile.enableFlash = document.getElementById('flash-select').value;
+
+            userProfile.mirror = document.getElementById('mirror-select').value;
+            userProfile.random = document.getElementById('random-select').value;
+            userProfile.judgePosition = parseInt(document.getElementById('judge-pos-slider').value);
+            userProfile.showEarlyLate = document.getElementById('earlylate-select').value;
+            userProfile.laneCover = document.getElementById('lanecover-select').value;
+
+            applyTheme(userProfile.theme);
+            toggleBgAnim(userProfile.bgAnim);
             saveProfileToLocal();
             applyProfileUI();
-            applyTheme(userProfile.theme);
+
             document.getElementById('settings-modal').classList.remove('show');
         }
 
-        function buildSpeedControls() {
-            const container = document.getElementById('speed-controls');
-            if(!container) return;
-            container.innerHTML = '';
-            const speeds = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-            speeds.forEach(sp => {
-                const btn = document.createElement('button');
-                btn.className = `diff-btn ${systemNoteSpeed === sp ? 'active' : ''}`;
-                btn.style.padding = '4px 6px'; btn.style.fontSize = '9px';
-                btn.innerText = sp.toFixed(1) + 'x';
-                btn.onclick = () => { systemNoteSpeed = sp; buildSpeedControls(); };
-                container.appendChild(btn);
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        function openHelpModal() { document.getElementById('help-modal').classList.add('show'); }
+        function closeHelpModal() { document.getElementById('help-modal').classList.remove('show'); }
+
+        function startKeyBind(index) {
+            waitingForKeyIndex = index;
+            const btn = document.getElementById(`key-bind-${index}`);
+            btn.innerText = "...";
+            btn.classList.add('waiting');
+        }
+
+        let ioMode = 'export';
+        function openExportModal() {
+            ioMode = 'export';
+            document.getElementById('ioModalTitle').innerText = 'EXPORT CHART';
+            document.getElementById('io-textarea').value = JSON.stringify(currentNotes, null, 2);
+            document.getElementById('io-action-btn').innerText = 'COPY TO CLIPBOARD';
+            document.getElementById('chart-io-modal').classList.add('show');
+        }
+
+        function openImportModal() {
+            ioMode = 'import';
+            document.getElementById('ioModalTitle').innerText = 'IMPORT CHART';
+            document.getElementById('io-textarea').value = '';
+            document.getElementById('io-action-btn').innerText = 'IMPORT DATA';
+            document.getElementById('chart-io-modal').classList.add('show');
+        }
+
+        function closeIoModal() { document.getElementById('chart-io-modal').classList.remove('show'); }
+
+        function executeIoAction() {
+            if (ioMode === 'export') {
+                const textarea = document.getElementById('io-textarea');
+                textarea.select();
+                navigator.clipboard.writeText(textarea.value);
+                alert('クリップボードにコピーしました！');
+            } else {
+                try {
+                    const imported = JSON.parse(document.getElementById('io-textarea').value);
+                    if (Array.isArray(imported)) {
+                        currentNotes = imported;
+                        saveToGlobalChart();
+                        renderEditor();
+                        alert('譜面データをインポートしました！');
+                        closeIoModal();
+                    } else {
+                        alert('無効なフォーマットです。');
+                    }
+                } catch(e) {
+                    alert('JSONの解析に失敗しました。');
+                }
+            }
+        }
+
+        function toggleEditorAudio() {
+            if(!scWidget) return;
+            if(isTrackPlaying) {
+                scWidget.pause();
+                isTrackPlaying = false;
+            } else {
+                scWidget.play();
+                isTrackPlaying = true;
+            }
+        }
+
+        function toggleRecAction() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('recordBtn');
+            if(isRecording) {
+                btn.innerText = "⏹ REC STOP";
+                btn.classList.add('recording');
+                if(scWidget) { scWidget.seekTo(0); scWidget.play(); }
+            } else {
+                stopRecording();
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            const btn = document.getElementById('recordBtn');
+            if(btn) {
+                btn.innerText = "🔴 REC START";
+                btn.classList.remove('recording');
+            }
+            if(scWidget) scWidget.pause();
+        }
+
+        function pauseResumeRecording() {
+            isRecordingPaused = !isRecordingPaused;
+            const btn = document.getElementById('recordPauseBtn');
+            if(isRecordingPaused) {
+                btn.innerText = "▶ RESUME";
+                if(scWidget) scWidget.pause();
+            } else {
+                btn.innerText = "⏸ PAUSE";
+                if(scWidget) scWidget.play();
+            }
+        }
+
+        function tryTestPlay() {
+            testPlayMode = true;
+            startGame();
+        }
+
+        function clearCurrentChart() {
+            if(confirm('現在の譜面データを全消去しますか？')) {
+                currentNotes = [];
+                saveToGlobalChart();
+                renderEditor();
+            }
+        }
+
+        function initSCWidget() {
+            const iframe = document.getElementById('sc-player');
+            if (!iframe || typeof SC === 'undefined') return;
+            scWidget = SC.Widget(iframe);
+            scWidget.bind(SC.Widget.Events.READY, () => {
+                scWidget.setVolume(masterVolume);
+                unlockButton();
+                if (currentSong && currentSong.scUrl) {
+                    loadTrackViaWidget(currentSong.scUrl);
+                }
+            });
+            scWidget.bind(SC.Widget.Events.PLAY, () => { isTrackPlaying = true; });
+            scWidget.bind(SC.Widget.Events.PAUSE, () => { isTrackPlaying = false; });
+            scWidget.bind(SC.Widget.Events.FINISH, () => {
+                isTrackPlaying = false;
+                if (activeScreen === 'game') finishGame();
             });
         }
 
-        let keyBindingIndex = -1;
-        function startKeyBind(index) {
-            keyBindingIndex = index;
-            document.querySelectorAll('.key-bind-btn').forEach(b => b.classList.remove('waiting'));
-            const btn = document.getElementById(`key-bind-${index}`);
-            if(btn) { btn.classList.add('waiting'); btn.innerText = 'PRESS...'; }
-        }
-
-        function updateKeyBindUI() {
-            for(let i=0; i<4; i++) {
-                const btn = document.getElementById(`key-bind-${i}`);
-                if(btn) btn.innerText = (userKeys[i] || '').toUpperCase();
-            }
-        }
-
-        function engineLoop(timestamp) {
-            let dt = (timestamp - lastFrameTimestamp) / 1000;
-            lastFrameTimestamp = timestamp;
-
-            if (isTrackPlaying && scWidget && !isGamePaused) {
-                trackCurrentTime += dt;
-            }
-
-            if (activeScreen === 'game') {
-                renderGame();
-                requestAnimationFrame(engineLoop);
-            } else if (activeScreen === 'editor') {
-                if (isTrackPlaying && !isRecordingPaused) {
-                    editorScrollSec = trackCurrentTime;
-                    document.getElementById('editorTimeDisp').innerText = formatTime(editorScrollSec);
-                }
-                renderEditor();
-                requestAnimationFrame(engineLoop);
-            }
-        }
-
-        function formatTime(sec) {
-            let m = Math.floor(sec / 60);
-            let s = sec % 60;
-            return String(m).padStart(2,'0') + ":" + s.toFixed(2).padStart(5,'0');
-        }
-
-        window.addEventListener('keydown', (e) => {
-            if (keyBindingIndex !== -1) {
-                const key = e.key.toLowerCase();
-                if (key !== 'escape') {
-                    userKeys[keyBindingIndex] = key;
-                    userProfile.keys = userKeys;
-                    saveProfileToLocal();
-                }
-                keyBindingIndex = -1;
-                updateKeyBindUI();
-                return;
-            }
-
-            if (e.key === 'Escape') {
-                if (activeScreen === 'game') toggleGamePause();
-                else if (activeScreen === 'editor') triggerQuitToSelect();
-                return;
-            }
-
-            if (e.key === 'Enter') {
-                if (activeScreen === 'game' && isGamePaused) {
-                    toggleGamePause();
-                    return;
-                }
-            }
-
-            if (activeScreen === 'game' && !isGamePaused) {
-                if (e.key === '+' || e.key === '=') { systemNoteSpeed = Math.min(6.0, systemNoteSpeed + 0.2); return; }
-                if (e.key === '-' || e.key === '_') { systemNoteSpeed = Math.max(0.5, systemNoteSpeed - 0.2); return; }
-            }
-
-            const mapping = getKeyMapping();
-            const key = e.key.toLowerCase();
-
-            if (key in mapping) {
-                const lane = mapping[key];
-                if (!keysState[lane]) {
-                    keysState[lane] = true;
-                    if (isAssistTick) playTickSound();
-                    
-                    if (activeScreen === 'game' && !isGamePaused && !isAutoPlay) {
-                        executeHitJudgment(lane);
-                    } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
-                        recordingNotes[lane] = { time: Math.round(editorScrollSec * 20) / 20, lane: lane, speedMult: currentNoteSpeedMult, effect: currentNoteEffect, effectDuration: currentNoteEffectDur };
-                        currentNotes.push(recordingNotes[lane]);
+        // 初期化処理
+        window.onload = function() {
+            if (!window.songList || window.songList.length === 0) {
+                window.songList = [
+                    {
+                        id: "song1",
+                        title: "Cyber Core Overload",
+                        artist: "Strikers Sound Team",
+                        scUrl: "https://soundcloud.com/example/song1",
+                        levels: { easy: "Lv.3", normal: "Lv.7", hard: "Lv.11", expert: "Lv.14" },
+                        charts: { normal: [] }
+                    },
+                    {
+                        id: "song2",
+                        title: "Equinox Storm",
+                        artist: "Hyper Beats",
+                        scUrl: "https://soundcloud.com/example/song2",
+                        levels: { easy: "Lv.4", normal: "Lv.8", hard: "Lv.12", expert: "Lv.15" },
+                        charts: { normal: [] }
                     }
-                }
+                ];
             }
 
-            if (e.code === 'Space' && activeScreen === 'editor') {
-                e.preventDefault();
-                toggleEditorAudio();
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            const mapping = getKeyMapping();
-            const key = e.key.toLowerCase();
-            if (key in mapping) {
-                const lane = mapping[key];
-                keysState[lane] = false;
-                if (activeScreen === 'game' && !isGamePaused && !isAutoPlay) {
-                    executeReleaseJudgment(lane);
-                } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
-                    finalizeRecordingNote(lane);
-                }
-            }
-        });
-
-        window.addEventListener('DOMContentLoaded', () => {
+            currentSong = window.songList[0];
             initAccountSystem();
-            
-            const iframe = document.getElementById('sc-player');
-            if (iframe && window.SC) {
-                scWidget = SC.Widget(iframe);
-                scWidget.bind(SC.Widget.Events.READY, () => {
-                    scWidget.setVolume(masterVolume);
-                    if (window.songList && window.songList.length > 0) {
-                        selectSong(0);
-                    }
-                });
-                scWidget.bind(SC.Widget.Events.FINISH, () => {
-                    if (activeScreen === 'game') finishGame();
-                });
-            } else {
-                buildSongList();
-            }
-        });
+            initSCWidget();
+            buildSongList();
+        };
     </script>
 </body>
 </html>
