@@ -182,7 +182,7 @@
         #editor-screen { flex-direction: row; background: var(--bg-base); }
         .editor-side { width: 340px; height: 100%; background: rgba(5,6,15,0.92); border-right: 1px solid var(--border-line); padding: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 5; backdrop-filter: blur(10px); }
         .editor-main { flex: 1; height: 100%; background: rgba(2,3,8,0.85); position: relative; }
-        #editorCanvas { width: 100%; height: 100%; }
+        #editorCanvas { width: 100%; height: 100%; cursor: pointer; }
 
         .modal-base { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(2, 3, 10, 0.88); display: none; justify-content: center; align-items: center; z-index: 999; opacity: 0; transition: opacity 0.25s; backdrop-filter: blur(8px); }
         .modal-base.show { display: flex; opacity: 1; }
@@ -202,9 +202,6 @@
         #sc-hidden-container { position: absolute; top: -9999px; left: -9999px; visibility: hidden; }
         #flash-overlay { position: fixed; top:0; left:0; width:100vw; height:100vh; background:#fff; opacity:0; pointer-events:none; z-index:9000; transition: opacity 0.15s; display:none; }
         
-        /* =========================================================
-           RAINBOW, EQUINOX, NEW FX ANIMATIONS
-           ========================================================= */
         #rainbow-overlay {
             position: fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:8000; opacity:0; display:none;
             background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000);
@@ -218,7 +215,6 @@
             100% { background-position: 400% 50%; filter: hue-rotate(3600deg); opacity: 0; }
         }
 
-        /* Equinox: 回転しても画面端まで完全に覆う (250vmax, ボーダーや外枠強調を削除) */
         #equinox-overlay {
             position: fixed; top: 50%; left: 50%; width: 250vmax; height: 250vmax;
             margin-top: -125vmax; margin-left: -125vmax; pointer-events:none; z-index:8500; opacity:0; display:none;
@@ -281,7 +277,6 @@
 
     <div id="flash-overlay"></div>
     
-    <!-- EFFECT OVERLAYS -->
     <div id="rainbow-overlay"></div>
     <div id="equinox-overlay"></div>
     <div id="glitch-overlay"></div>
@@ -354,6 +349,8 @@
                 <span style="font-family: 'Press Start 2P'; font-size: 9px;">AUTO PLAY MODE</span>
                 <span id="autoPlayStatus" style="font-family: 'Press Start 2P'; font-size: 9px; color: var(--text-sub);">OFF</span>
             </div>
+
+            <button class="action-btn" id="previewStopBtn" onclick="togglePreviewAudio()" style="height: 34px; font-size: 9px; border-color: var(--accent-pink); color: var(--accent-pink);">⏹ PREVIEW STOP</button>
 
             <div class="action-group" style="margin-top: auto;">
                 <button class="action-btn play-now" onclick="startGame()" id="startPlayBtn" disabled>LOADING...</button>
@@ -687,7 +684,6 @@
         <iframe id="sc-player" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/293&amp;auto_play=false" width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay"></iframe>
     </div>
 
-    <!-- 外部譜面データの読み込み -->
     <script>window.songList = window.songList || [];</script>
     <script src="Musicdata1.js"></script>
     <script src="Musicdata2.js" onerror="this.onerror=null; console.log('Musicdata2.js is not loaded or missing.');"></script>
@@ -696,7 +692,6 @@
     <script src="Musicdata5.js" onerror="this.onerror=null; console.log('Musicdata5.js is not loaded or missing.');"></script>
 
     <script>
-        // グローバル設定 & ステート
         let gridSnapSec = 0.05;
         let pxPerSec = 400; 
         
@@ -768,7 +763,6 @@
             }
         });
 
-        // オーディオ制御 (Web Audio API)
         let audioCtx;
         let isAssistTick = false;
 
@@ -818,7 +812,6 @@
             return { width: rect.width, height: rect.height };
         }
 
-        // ユーザープロファイル & 設定永続化
         let userProfile = { 
             username: "", displayName: "GUEST", avatarUrl: "",
             level: 1, xp: 0, highScores: {},
@@ -963,7 +956,6 @@
             if(event.target.files[0]) fileReader.readAsText(event.target.files[0]);
         }
 
-        // エフェクト リセット関数
         function resetVisualEffects() {
             if (rainbowTimer) clearTimeout(rainbowTimer);
             if (equinoxTimer) clearTimeout(equinoxTimer);
@@ -993,7 +985,6 @@
             applyTheme(userProfile.theme || 'cyber');
         }
 
-        // 画面切り替え & 管理
         function changeScreen(screenName) {
             resetVisualEffects();
 
@@ -1012,6 +1003,7 @@
                     scWidget.seekTo(0);
                     scWidget.play();
                     isTrackPlaying = true;
+                    updatePreviewButtonText();
                 }
             } else if (screenName !== 'game' && screenName !== 'editor') {
                 if(scWidget) scWidget.pause();
@@ -1026,6 +1018,32 @@
             }
             if(screenName === 'editor') {
                 resizeEditorCanvas();
+            }
+        }
+
+        function togglePreviewAudio() {
+            if (!scWidget) return;
+            if (isTrackPlaying) {
+                scWidget.pause();
+                isTrackPlaying = false;
+            } else {
+                scWidget.play();
+                isTrackPlaying = true;
+            }
+            updatePreviewButtonText();
+        }
+
+        function updatePreviewButtonText() {
+            const btn = document.getElementById('previewStopBtn');
+            if (!btn) return;
+            if (isTrackPlaying) {
+                btn.innerText = "⏹ PREVIEW STOP";
+                btn.style.borderColor = "var(--accent-pink)";
+                btn.style.color = "var(--accent-pink)";
+            } else {
+                btn.innerText = "▶ PREVIEW PLAY";
+                btn.style.borderColor = "var(--accent-neon)";
+                btn.style.color = "var(--accent-neon)";
             }
         }
 
@@ -1062,7 +1080,6 @@
             else { box.classList.remove('active'); status.innerText = "OFF"; status.style.color = "var(--text-sub)"; }
         }
 
-        // 選曲リスト & SoundCloud API
         function buildSongList() {
             const container = document.getElementById('songListId');
             if(!container) return;
@@ -1119,6 +1136,7 @@
                                 scWidget.seekTo(0);
                                 scWidget.play();
                                 isTrackPlaying = true;
+                                updatePreviewButtonText();
                             }
                             scWidget.getCurrentSound((sound) => { updateJacketArtwork(sound); }); 
                         } 
@@ -1179,7 +1197,6 @@
             localStorage.setItem(localChartKey, JSON.stringify(currentNotes));
         }
 
-        // ゲームエンジン & メインループ
         function startGame() {
             initAudio();
             const sourceData = safeLoadChart();
@@ -1581,7 +1598,6 @@
             else grooveEl.classList.remove('groove-overheat');
         }
 
-        // メインゲームループ
         function engineLoop(timestamp) {
             if (activeScreen !== 'game') return;
             let delta = (timestamp - lastFrameTimestamp) / 1000;
@@ -1599,7 +1615,6 @@
             }
         }
 
-        // 譜面エディタ
         function startEditor() {
             initAudio(); 
             currentNotes = safeLoadChart(); 
@@ -1612,348 +1627,141 @@
             }
             isTrackPlaying = false;
             resizeEditorCanvas();
+            requestAnimationFrame(renderEditorLoop);
+        }
+
+        function renderEditorLoop() {
+            if (activeScreen !== 'editor') return;
+            
+            if (isTrackPlaying && scWidget) {
+                scWidget.getPosition((pos) => {
+                    editorScrollSec = pos / 1000;
+                });
+            }
+
             renderEditor();
+            requestAnimationFrame(renderEditorLoop);
         }
 
         function renderEditor() {
             if (activeScreen !== 'editor') return;
             const rect = { width: eCanvas.clientWidth, height: eCanvas.clientHeight };
+            
             eCtx.clearRect(0, 0, rect.width, rect.height);
 
+            const mins = Math.floor(editorScrollSec / 60);
+            const secs = (editorScrollSec % 60).toFixed(2);
+            document.getElementById('editorTimeDisp').innerText = `${String(mins).padStart(2,'0')}:${String(secs).padStart(5,'0')}`;
+
             const laneW = rect.width / 4;
-            
-            // レーン描画
-            eCtx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
-            eCtx.lineWidth = 1;
-            for (let i = 0; i <= 4; i++) {
-                eCtx.beginPath();
-                eCtx.moveTo(i * laneW, 0);
-                eCtx.lineTo(i * laneW, rect.height);
-                eCtx.stroke();
-            }
+            const timelineY = rect.height - 120;
 
-            // スナップグリッド描画
-            if (gridSnapSec > 0) {
-                eCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                let startSec = editorScrollSec;
-                let endSec = editorScrollSec + (rect.height / pxPerSec);
-                let firstGrid = Math.floor(startSec / gridSnapSec) * gridSnapSec;
-                for (let t = firstGrid; t <= endSec; t += gridSnapSec) {
-                    let y = rect.height - ((t - editorScrollSec) * pxPerSec);
-                    eCtx.beginPath();
-                    eCtx.moveTo(0, y);
-                    eCtx.lineTo(rect.width, y);
-                    eCtx.stroke();
+            eCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            eCtx.fillRect(0, 0, rect.width, rect.height);
+
+            for (let i = 0; i < 4; i++) {
+                eCtx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+                eCtx.lineWidth = 1;
+                eCtx.strokeRect(i * laneW, 0, laneW, rect.height);
+
+                if (showHandGuide) {
+                    eCtx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                    eCtx.font = '12px "Press Start 2P"';
+                    eCtx.textAlign = 'center';
+                    eCtx.fillText(userKeys[i].toUpperCase(), i * laneW + laneW / 2, timelineY + 40);
                 }
             }
 
-            // ノーツ描画
-            currentNotes.forEach((note) => {
-                let y = rect.height - ((note.time - editorScrollSec) * pxPerSec);
-                let x = note.lane * laneW;
-
-                if (note.isLong && note.endTime !== undefined) {
-                    let yEnd = rect.height - ((note.endTime - editorScrollSec) * pxPerSec);
-                    eCtx.fillStyle = 'rgba(0, 240, 255, 0.4)';
-                    eCtx.fillRect(x + 8, yEnd, laneW - 16, y - yEnd);
-                    eCtx.fillStyle = '#fff';
-                    eCtx.fillRect(x + 4, yEnd - 4, laneW - 8, 8);
-                }
-
-                eCtx.fillStyle = glowColors[note.lane];
-                eCtx.fillRect(x + 4, y - 6, laneW - 8, 12);
-
-                if (note.effect && note.effect !== 'none') {
-                    eCtx.fillStyle = '#ff0055';
-                    eCtx.font = '9px Press Start 2P';
-                    eCtx.fillText(note.effect.substring(0, 4).toUpperCase(), x + 8, y - 8);
-                }
-            });
-
-            // タイムバー
-            let timeY = rect.height - ((trackCurrentTime - editorScrollSec) * pxPerSec);
             eCtx.strokeStyle = 'var(--accent-pink)';
             eCtx.lineWidth = 2;
             eCtx.beginPath();
-            eCtx.moveTo(0, timeY);
-            eCtx.lineTo(rect.width, timeY);
+            eCtx.moveTo(0, timelineY);
+            eCtx.lineTo(rect.width, timelineY);
             eCtx.stroke();
 
-            // ハンド配置ガイド
-            if (showHandGuide) {
-                eCtx.font = '16px Press Start 2P';
-                eCtx.fillStyle = '#00ff88';
-                for (let i = 0; i < 4; i++) {
-                    let keyName = (userKeys[i] || '').toUpperCase();
-                    eCtx.fillText(keyName, i * laneW + laneW / 2 - 8, rect.height - 20);
+            let startTime = editorScrollSec - 1.0;
+            let endTime = editorScrollSec + (rect.height / pxPerSec);
+
+            if (gridSnapSec > 0) {
+                eCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                eCtx.lineWidth = 1;
+                let startGrid = Math.floor(startTime / gridSnapSec) * gridSnapSec;
+                for (let t = startGrid; t <= endTime; t += gridSnapSec) {
+                    let y = timelineY - (t - editorScrollSec) * pxPerSec;
+                    if (y >= 0 && y <= rect.height) {
+                        eCtx.beginPath();
+                        eCtx.moveTo(0, y);
+                        eCtx.lineTo(rect.width, y);
+                        eCtx.stroke();
+                    }
                 }
             }
 
-            // エディタ時間表示
-            let m = Math.floor(trackCurrentTime / 60);
-            let s = (trackCurrentTime % 60).toFixed(2);
-            document.getElementById('editorTimeDisp').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(5,'0')}`;
+            currentNotes.forEach((note, idx) => {
+                let noteY = timelineY - (note.time - editorScrollSec) * pxPerSec;
+                let x = note.lane * laneW;
+
+                if (note.isLong && note.endTime !== undefined) {
+                    let endY = timelineY - (note.endTime - editorScrollSec) * pxPerSec;
+                    eCtx.fillStyle = glowColors[note.lane] + '66';
+                    eCtx.fillRect(x + 10, endY, laneW - 20, noteY - endY);
+                }
+
+                if (noteY >= -20 && noteY <= rect.height + 20) {
+                    eCtx.fillStyle = glowColors[note.lane];
+                    eCtx.fillRect(x + 6, noteY - 6, laneW - 12, 12);
+                    eCtx.strokeStyle = '#fff';
+                    eCtx.lineWidth = 1;
+                    eCtx.strokeRect(x + 6, noteY - 6, laneW - 12, 12);
+
+                    if (note.effect && note.effect !== 'none') {
+                        eCtx.fillStyle = '#fff';
+                        eCtx.font = '8px monospace';
+                        eCtx.fillText(note.effect.toUpperCase(), x + 10, noteY + 3);
+                    }
+                }
+            });
         }
 
-        // イベントリスナー (キー入力)
-        let waitingForKeyIndex = null;
-
-        window.addEventListener('keydown', (e) => {
-            if (e.repeat) return;
-            const key = e.key.toLowerCase();
-            
-            if (waitingForKeyIndex !== null) {
-                userKeys[waitingForKeyIndex] = key;
-                document.getElementById(`key-bind-${waitingForKeyIndex}`).innerText = key.toUpperCase();
-                document.getElementById(`key-bind-${waitingForKeyIndex}`).classList.remove('waiting');
-                waitingForKeyIndex = null;
-                saveProfileToLocal();
-                return;
-            }
-
-            if (e.key === 'Escape') {
-                if (activeScreen === 'game') triggerQuitToSelect();
-                else if (activeScreen === 'editor') changeScreen('select');
-                return;
-            }
-
-            if (e.key === 'Enter') {
-                if (activeScreen === 'game') toggleGamePause();
-                return;
-            }
-
-            if (activeScreen === 'game' && !isGamePaused) {
-                const lane = getKeyMapping()[key];
-                if (lane !== undefined) {
-                    keysState[lane] = true;
-                    if (!isAutoPlay) executeHitJudgment(lane);
-                }
-            } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
-                const lane = getKeyMapping()[key];
-                if (lane !== undefined) {
-                    recordingNotes[lane] = { lane: lane, time: trackCurrentTime, isLong: false };
-                }
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (activeScreen === 'game' && !isGamePaused) {
-                const lane = getKeyMapping()[key];
-                if (lane !== undefined) {
-                    keysState[lane] = false;
-                    if (!isAutoPlay) executeReleaseJudgment(lane);
-                }
-            } else if (activeScreen === 'editor' && isRecording && !isRecordingPaused) {
-                const lane = getKeyMapping()[key];
-                if (lane !== undefined && recordingNotes[lane]) {
-                    let startNote = recordingNotes[lane];
-                    let dur = trackCurrentTime - startNote.time;
-                    if (dur > 0.15) {
-                        currentNotes.push({
-                            lane: lane,
-                            time: startNote.time,
-                            isLong: true,
-                            endTime: trackCurrentTime,
-                            speedMult: currentNoteSpeedMult,
-                            effect: currentNoteEffect,
-                            effectDuration: currentNoteEffectDur
-                        });
-                    } else {
-                        currentNotes.push({
-                            lane: lane,
-                            time: startNote.time,
-                            isLong: false,
-                            speedMult: currentNoteSpeedMult,
-                            effect: currentNoteEffect,
-                            effectDuration: currentNoteEffectDur
-                        });
-                    }
-                    recordingNotes[lane] = null;
-                    saveToGlobalChart();
-                    renderEditor();
-                }
-            }
-        });
-
-        // エディタのマウス操作
-        eCanvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            editorScrollSec = Math.max(0, editorScrollSec + (e.deltaY > 0 ? -0.2 : 0.2));
-            renderEditor();
-        });
-
-        let isDraggingEditor = false;
-        let dragStartY = 0;
-        let dragStartScroll = 0;
-
-        eCanvas.addEventListener('mousedown', (e) => {
+        eCanvas.addEventListener('click', (e) => {
+            if (activeScreen !== 'editor') return;
             const rect = eCanvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
+
             const laneW = rect.width / 4;
             const lane = Math.floor(clickX / laneW);
+            const timelineY = rect.height - 120;
 
-            if (e.button === 0) {
-                let clickedTime = editorScrollSec + ((rect.height - clickY) / pxPerSec);
-                if (gridSnapSec > 0) {
-                    clickedTime = Math.round(clickedTime / gridSnapSec) * gridSnapSec;
-                }
-                
-                let existingIndex = currentNotes.findIndex(n => n.lane === lane && Math.abs(n.time - clickedTime) < 0.1);
-                if (existingIndex !== -1) {
-                    currentNotes.splice(existingIndex, 1);
-                } else {
-                    currentNotes.push({
-                        lane: lane,
-                        time: clickedTime,
-                        isLong: false,
-                        speedMult: currentNoteSpeedMult,
-                        effect: currentNoteEffect,
-                        effectDuration: currentNoteEffectDur
-                    });
-                }
-                saveToGlobalChart();
-                renderEditor();
-            } else if (e.button === 2) {
-                isDraggingEditor = true;
-                dragStartY = e.clientY;
-                dragStartScroll = editorScrollSec;
-            }
-        });
+            let clickedTime = editorScrollSec + (timelineY - clickY) / pxPerSec;
 
-        eCanvas.addEventListener('contextmenu', e => e.preventDefault());
-
-        window.addEventListener('mousemove', (e) => {
-            if (isDraggingEditor) {
-                let diffY = e.clientY - dragStartY;
-                editorScrollSec = Math.max(0, dragStartScroll + (diffY / pxPerSec));
-                renderEditor();
-            }
-        });
-
-        window.addEventListener('mouseup', () => { isDraggingEditor = false; });
-
-        // モーダル & UI制御
-        function openSettingsModal() {
-            document.getElementById('set-username').value = userProfile.username || '';
-            document.getElementById('set-displayname').value = userProfile.displayName || '';
-            document.getElementById('set-avatarurl').value = userProfile.avatarUrl || '';
-            document.getElementById('stat-playcount').innerText = userProfile.playCount || 0;
-            document.getElementById('stat-totalscore').innerText = (userProfile.totalScore || 0).toLocaleString();
-            
-            document.getElementById('theme-select').value = userProfile.theme || 'cyber';
-            document.getElementById('noteskin-select').value = userProfile.noteSkin || 'classic';
-            document.getElementById('effect-select').value = userProfile.showEffects ? 'on' : 'off';
-            document.getElementById('bganim-select').value = userProfile.bgAnim ? 'on' : 'off';
-            document.getElementById('shake-select').value = userProfile.enableShake || 'on';
-            document.getElementById('flash-select').value = userProfile.enableFlash || 'on';
-
-            document.getElementById('mirror-select').value = userProfile.mirror || 'off';
-            document.getElementById('random-select').value = userProfile.random || 'off';
-            document.getElementById('judge-pos-slider').value = userProfile.judgePosition || 580;
-            document.getElementById('judge-pos-disp').innerText = userProfile.judgePosition || 580;
-            document.getElementById('earlylate-select').value = userProfile.showEarlyLate || 'on';
-            document.getElementById('lanecover-select').value = userProfile.laneCover || 'off';
-
-            for (let i = 0; i < 4; i++) {
-                const btn = document.getElementById(`key-bind-${i}`);
-                if (btn) btn.innerText = (userKeys[i] || '').toUpperCase();
+            if (gridSnapSec > 0) {
+                clickedTime = Math.round(clickedTime / gridSnapSec) * gridSnapSec;
             }
 
-            document.getElementById('settings-modal').classList.add('show');
-        }
+            if (clickedTime < 0) return;
 
-        function closeSettingsModal() {
-            userProfile.username = document.getElementById('set-username').value.trim();
-            userProfile.displayName = document.getElementById('set-displayname').value.trim() || userProfile.username;
-            userProfile.avatarUrl = document.getElementById('set-avatarurl').value.trim();
+            let existingIdx = currentNotes.findIndex(n => n.lane === lane && Math.abs(n.time - clickedTime) < 0.08);
 
-            userProfile.theme = document.getElementById('theme-select').value;
-            userProfile.noteSkin = document.getElementById('noteskin-select').value;
-            userProfile.showEffects = document.getElementById('effect-select').value === 'on';
-            userProfile.bgAnim = document.getElementById('bganim-select').value === 'on';
-            userProfile.enableShake = document.getElementById('shake-select').value;
-            userProfile.enableFlash = document.getElementById('flash-select').value;
-
-            userProfile.mirror = document.getElementById('mirror-select').value;
-            userProfile.random = document.getElementById('random-select').value;
-            userProfile.judgePosition = parseInt(document.getElementById('judge-pos-slider').value);
-            userProfile.showEarlyLate = document.getElementById('earlylate-select').value;
-            userProfile.laneCover = document.getElementById('lanecover-select').value;
-
-            applyTheme(userProfile.theme);
-            toggleBgAnim(userProfile.bgAnim);
-            saveProfileToLocal();
-            applyProfileUI();
-
-            document.getElementById('settings-modal').classList.remove('show');
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        }
-
-        function openHelpModal() { document.getElementById('help-modal').classList.add('show'); }
-        function closeHelpModal() { document.getElementById('help-modal').classList.remove('show'); }
-
-        function startKeyBind(index) {
-            waitingForKeyIndex = index;
-            const btn = document.getElementById(`key-bind-${index}`);
-            btn.innerText = "...";
-            btn.classList.add('waiting');
-        }
-
-        let ioMode = 'export';
-        function openExportModal() {
-            ioMode = 'export';
-            document.getElementById('ioModalTitle').innerText = 'EXPORT CHART';
-            document.getElementById('io-textarea').value = JSON.stringify(currentNotes, null, 2);
-            document.getElementById('io-action-btn').innerText = 'COPY TO CLIPBOARD';
-            document.getElementById('chart-io-modal').classList.add('show');
-        }
-
-        function openImportModal() {
-            ioMode = 'import';
-            document.getElementById('ioModalTitle').innerText = 'IMPORT CHART';
-            document.getElementById('io-textarea').value = '';
-            document.getElementById('io-action-btn').innerText = 'IMPORT DATA';
-            document.getElementById('chart-io-modal').classList.add('show');
-        }
-
-        function closeIoModal() { document.getElementById('chart-io-modal').classList.remove('show'); }
-
-        function executeIoAction() {
-            if (ioMode === 'export') {
-                const textarea = document.getElementById('io-textarea');
-                textarea.select();
-                navigator.clipboard.writeText(textarea.value);
-                alert('クリップボードにコピーしました！');
+            if (existingIdx >= 0) {
+                currentNotes.splice(existingIdx, 1);
             } else {
-                try {
-                    const imported = JSON.parse(document.getElementById('io-textarea').value);
-                    if (Array.isArray(imported)) {
-                        currentNotes = imported;
-                        saveToGlobalChart();
-                        renderEditor();
-                        alert('譜面データをインポートしました！');
-                        closeIoModal();
-                    } else {
-                        alert('無効なフォーマットです。');
-                    }
-                } catch(e) {
-                    alert('JSONの解析に失敗しました。');
-                }
+                let newNote = {
+                    lane: lane,
+                    time: parseFloat(clickedTime.toFixed(3)),
+                    speedMult: currentNoteSpeedMult,
+                    effect: currentNoteEffect,
+                    effectDuration: currentNoteEffectDur
+                };
+                currentNotes.push(newNote);
+                currentNotes.sort((a, b) => a.time - b.time);
             }
-        }
+            saveToGlobalChart();
+        });
 
         function toggleEditorAudio() {
-            if(!scWidget) return;
-            if(isTrackPlaying) {
+            if (!scWidget) return;
+            if (isTrackPlaying) {
                 scWidget.pause();
                 isTrackPlaying = false;
             } else {
@@ -1963,99 +1771,223 @@
         }
 
         function toggleRecAction() {
-            isRecording = !isRecording;
-            const btn = document.getElementById('recordBtn');
-            if(isRecording) {
-                btn.innerText = "⏹ REC STOP";
-                btn.classList.add('recording');
-                if(scWidget) { scWidget.seekTo(0); scWidget.play(); }
+            if (!isRecording) {
+                isRecording = true;
+                document.getElementById('recordBtn').classList.add('recording');
+                document.getElementById('recordBtn').innerText = "⏹ REC STOP";
+                document.getElementById('recordPauseBtn').style.display = "block";
+                if (scWidget && !isTrackPlaying) {
+                    scWidget.play();
+                    isTrackPlaying = true;
+                }
             } else {
                 stopRecording();
             }
         }
 
-        function stopRecording() {
-            isRecording = false;
-            const btn = document.getElementById('recordBtn');
-            if(btn) {
-                btn.innerText = "🔴 REC START";
-                btn.classList.remove('recording');
-            }
-            if(scWidget) scWidget.pause();
-        }
-
         function pauseResumeRecording() {
             isRecordingPaused = !isRecordingPaused;
             const btn = document.getElementById('recordPauseBtn');
-            if(isRecordingPaused) {
+            if (isRecordingPaused) {
                 btn.innerText = "▶ RESUME";
-                if(scWidget) scWidget.pause();
+                if (scWidget) scWidget.pause();
+                isTrackPlaying = false;
             } else {
                 btn.innerText = "⏸ PAUSE";
-                if(scWidget) scWidget.play();
+                if (scWidget) scWidget.play();
+                isTrackPlaying = true;
             }
         }
 
+        function stopRecording() {
+            isRecording = false;
+            isRecordingPaused = false;
+            const btn = document.getElementById('recordBtn');
+            if (btn) {
+                btn.classList.remove('recording');
+                btn.innerText = "🔴 REC START";
+            }
+            document.getElementById('recordPauseBtn').style.display = "none";
+            if (scWidget) scWidget.pause();
+            isTrackPlaying = false;
+            saveToGlobalChart();
+        }
+
         function tryTestPlay() {
+            saveToGlobalChart();
             testPlayMode = true;
             startGame();
         }
 
         function clearCurrentChart() {
-            if(confirm('現在の譜面データを全消去しますか？')) {
+            if (confirm("全てのノーツを削除しますか？")) {
                 currentNotes = [];
                 saveToGlobalChart();
-                renderEditor();
             }
         }
 
-        function initSCWidget() {
-            const iframe = document.getElementById('sc-player');
-            if (!iframe || typeof SC === 'undefined') return;
-            scWidget = SC.Widget(iframe);
-            scWidget.bind(SC.Widget.Events.READY, () => {
-                scWidget.setVolume(masterVolume);
-                unlockButton();
-                if (currentSong && currentSong.scUrl) {
-                    loadTrackViaWidget(currentSong.scUrl);
-                }
-            });
-            scWidget.bind(SC.Widget.Events.PLAY, () => { isTrackPlaying = true; });
-            scWidget.bind(SC.Widget.Events.PAUSE, () => { isTrackPlaying = false; });
-            scWidget.bind(SC.Widget.Events.FINISH, () => {
-                isTrackPlaying = false;
-                if (activeScreen === 'game') finishGame();
-            });
+        let ioMode = "export";
+        function openExportModal() {
+            ioMode = "export";
+            document.getElementById('ioModalTitle').innerText = "EXPORT CHART";
+            document.getElementById('io-textarea').value = JSON.stringify(currentNotes, null, 2);
+            document.getElementById('io-action-btn').innerText = "COPY";
+            document.getElementById('chart-io-modal').classList.add('show');
         }
 
-        // 初期化処理
-        window.onload = function() {
-            if (!window.songList || window.songList.length === 0) {
-                window.songList = [
-                    {
-                        id: "song1",
-                        title: "Cyber Core Overload",
-                        artist: "Strikers Sound Team",
-                        scUrl: "https://soundcloud.com/example/song1",
-                        levels: { easy: "Lv.3", normal: "Lv.7", hard: "Lv.11", expert: "Lv.14" },
-                        charts: { normal: [] }
-                    },
-                    {
-                        id: "song2",
-                        title: "Equinox Storm",
-                        artist: "Hyper Beats",
-                        scUrl: "https://soundcloud.com/example/song2",
-                        levels: { easy: "Lv.4", normal: "Lv.8", hard: "Lv.12", expert: "Lv.15" },
-                        charts: { normal: [] }
+        function openImportModal() {
+            ioMode = "import";
+            document.getElementById('ioModalTitle').innerText = "IMPORT CHART";
+            document.getElementById('io-textarea').value = "";
+            document.getElementById('io-action-btn').innerText = "LOAD";
+            document.getElementById('chart-io-modal').classList.add('show');
+        }
+
+        function closeIoModal() {
+            document.getElementById('chart-io-modal').classList.remove('show');
+        }
+
+        function executeIoAction() {
+            if (ioMode === "export") {
+                const txt = document.getElementById('io-textarea');
+                txt.select();
+                navigator.clipboard.writeText(txt.value);
+                alert("クリップボードにコピーしました！");
+            } else {
+                try {
+                    const data = JSON.parse(document.getElementById('io-textarea').value);
+                    if (Array.isArray(data)) {
+                        currentNotes = data;
+                        saveToGlobalChart();
+                        closeIoModal();
+                        alert("譜面データを読み込みました！");
+                    } else {
+                        alert("不正なデータフォーマットです。");
                     }
-                ];
+                } catch(e) {
+                    alert("JSONのパースに失敗しました。");
+                }
+            }
+        }
+
+        function openSettingsModal() {
+            document.getElementById('set-username').value = userProfile.username || "";
+            document.getElementById('set-displayname').value = userProfile.displayName || "";
+            document.getElementById('set-avatarurl').value = userProfile.avatarUrl || "";
+            document.getElementById('stat-playcount').innerText = userProfile.playCount || 0;
+            document.getElementById('stat-totalscore').innerText = userProfile.totalScore || 0;
+            document.getElementById('settings-modal').classList.add('show');
+        }
+
+        function closeSettingsModal() {
+            userProfile.username = document.getElementById('set-username').value.trim();
+            userProfile.displayName = document.getElementById('set-displayname').value.trim() || "GUEST";
+            userProfile.avatarUrl = document.getElementById('set-avatarurl').value.trim();
+            userProfile.theme = document.getElementById('theme-select').value;
+            userProfile.noteSkin = document.getElementById('noteskin-select').value;
+            userProfile.mirror = document.getElementById('mirror-select').value;
+            userProfile.random = document.getElementById('random-select').value;
+            userProfile.showEarlyLate = document.getElementById('earlylate-select').value;
+            userProfile.enableShake = document.getElementById('shake-select').value;
+            userProfile.enableFlash = document.getElementById('flash-select').value;
+
+            applyTheme(userProfile.theme);
+            saveProfileToLocal();
+            applyProfileUI();
+            document.getElementById('settings-modal').classList.remove('show');
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        function openHelpModal() { document.getElementById('help-modal').classList.add('show'); }
+        function closeHelpModal() { document.getElementById('help-modal').classList.remove('show'); }
+
+        let waitingForKeyIndex = -1;
+        function startKeyBind(laneIndex) {
+            waitingForKeyIndex = laneIndex;
+            const btn = document.getElementById(`key-bind-${laneIndex}`);
+            btn.classList.add('waiting');
+            btn.innerText = "...";
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+
+            if (waitingForKeyIndex >= 0) {
+                userKeys[waitingForKeyIndex] = key;
+                const btn = document.getElementById(`key-bind-${waitingForKeyIndex}`);
+                btn.classList.remove('waiting');
+                btn.innerText = key.toUpperCase();
+                waitingForKeyIndex = -1;
+                saveProfileToLocal();
+                return;
             }
 
-            currentSong = window.songList[0];
-            initAccountSystem();
-            initSCWidget();
-            buildSongList();
-        };
+            if (activeScreen === 'game') {
+                if (e.key === 'Enter') toggleGamePause();
+                if (e.key === 'Escape') triggerQuitToSelect();
+                if (e.key === '+' || e.key === '=') systemNoteSpeed = Math.min(10.0, systemNoteSpeed + 0.2);
+                if (e.key === '-') systemNoteSpeed = Math.max(0.5, systemNoteSpeed - 0.2);
+
+                const map = getKeyMapping();
+                if (map[key] !== undefined && !keysState[map[key]]) {
+                    keysState[map[key]] = true;
+                    if (!isAutoPlay) executeHitJudgment(map[key]);
+                }
+            } else if (activeScreen === 'editor') {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    toggleEditorAudio();
+                }
+                const map = getKeyMapping();
+                if (map[key] !== undefined) {
+                    const lane = map[key];
+                    playTickSound();
+                    if (isRecording && !isRecordingPaused) {
+                        let t = parseFloat(editorScrollSec.toFixed(3));
+                        let newNote = { lane: lane, time: t, speedMult: currentNoteSpeedMult, effect: currentNoteEffect, effectDuration: currentNoteEffectDur };
+                        currentNotes.push(newNote);
+                        currentNotes.sort((a, b) => a.time - b.time);
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            const map = getKeyMapping();
+            if (map[key] !== undefined) {
+                keysState[map[key]] = false;
+                if (activeScreen === 'game' && !isAutoPlay) {
+                    executeReleaseJudgment(map[key]);
+                }
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const scIframe = document.getElementById('sc-player');
+            if (scIframe && window.SC) {
+                scWidget = SC.Widget(scIframe);
+                scWidget.bind(SC.Widget.Events.READY, () => {
+                    initAccountSystem();
+                    if (window.songList && window.songList.length > 0) {
+                        selectSong(0);
+                    }
+                });
+            } else {
+                initAccountSystem();
+            }
+
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`key-bind-${i}`);
+                if (btn) btn.innerText = userKeys[i].toUpperCase();
+            }
+        });
     </script>
 </body>
 </html>
