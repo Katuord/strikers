@@ -2959,6 +2959,302 @@ setInterval(()=>{if(activeScreen==='editor'||document.getElementById('settings-m
 })();
 </script>
 
+
+<!-- ================================================================
+     STRIKERS!! v7.5 FINAL EDITOR + RAINBOW REPAIR
+     ADDITIVE PATCH ONLY: original functions/data remain in the file.
+     ================================================================ -->
+<style>
+/* ---------- v7.5 editor layout ---------- */
+#editor-screen.v75-editor-fixed{gap:18px!important;padding:14px!important;align-items:stretch!important;}
+#editor-screen.v75-editor-fixed .editor-side{
+  flex:0 0 330px!important;width:330px!important;min-width:330px!important;
+  height:calc(100vh - 28px)!important;margin:0!important;padding:15px!important;
+  border:1px solid rgba(0,240,255,.24)!important;border-right:2px solid rgba(0,240,255,.30)!important;
+  border-radius:8px!important;overflow-y:auto!important;overflow-x:hidden!important;
+  background:linear-gradient(180deg,rgba(3,7,18,.98),rgba(1,2,8,.97))!important;
+  box-shadow:0 0 30px rgba(0,240,255,.06)!important;
+}
+#editor-screen.v75-editor-fixed .editor-main{
+  flex:1 1 auto!important;min-width:0!important;height:calc(100vh - 28px)!important;
+  border:1px solid rgba(0,240,255,.24)!important;border-radius:8px!important;overflow:hidden!important;
+  background:radial-gradient(circle at 50% 25%,rgba(0,240,255,.07),transparent 38%),#02030a!important;
+}
+#editor-screen.v75-editor-fixed .editor-controls-group{
+  padding:12px!important;gap:9px!important;margin-bottom:2px!important;
+  border:1px solid rgba(255,255,255,.08)!important;border-radius:6px!important;
+}
+#v75-editor-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+#v75-editor-actions button{min-height:36px!important;font-size:9px!important}
+#v75-clear-all{grid-column:1 / -1;border-color:var(--accent-pink)!important;color:var(--accent-pink)!important}
+#v75-editor-help{font-family:'Share Tech Mono',monospace;color:#8585a0;font-size:11px;line-height:1.55;margin-top:8px}
+#v75-editor-legend{display:grid;grid-template-columns:1fr 1fr;gap:5px;font:10px 'Share Tech Mono',monospace;color:#aaa}
+.v75-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;box-shadow:0 0 7px currentColor}
+/* game-like editor HUD */
+#v75-editor-hud{position:absolute;left:14px;right:14px;top:14px;z-index:20;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;font-family:'Press Start 2P',monospace}
+.v75-hud-box{background:rgba(3,6,16,.84);border:1px solid rgba(255,255,255,.13);backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.3);padding:8px 10px}
+#v75-editor-song{font-size:10px;color:#fff;max-width:48vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#v75-editor-clock{font-size:12px;color:var(--accent-neon);text-shadow:0 0 10px var(--accent-neon);margin-top:4px}
+#v75-editor-status{font-size:8px;color:#8a8aa0;margin-top:5px}
+#v75-editor-right-hud{display:flex;gap:7px}
+.v75-hud-chip{min-width:74px;text-align:center;font-size:8px;color:#aaa}
+.v75-hud-chip b{display:block;font-size:11px;color:#fff;margin-top:4px}
+#v75-speed-chip b{color:#00ff88;text-shadow:0 0 8px #00ff88}
+#v75-zoom-chip b{color:var(--accent-neon)}
+#v75-mode-chip b{color:#ffee00}
+#v75-editor-footer{position:absolute;bottom:12px;left:14px;right:14px;z-index:20;display:flex;justify-content:space-between;pointer-events:none;font:9px 'Share Tech Mono',monospace;color:#777}
+#v75-editor-footer span{background:rgba(2,4,12,.7);padding:5px 7px;border:1px solid rgba(255,255,255,.07)}
+/* Canvas gets a game-like cursor */
+#editor-screen.v75-editor-fixed #editorCanvas{cursor:crosshair!important}
+@media(max-width:850px){#editor-screen.v75-editor-fixed{gap:8px!important;padding:8px!important}#editor-screen.v75-editor-fixed .editor-side{flex-basis:250px!important;width:250px!important;min-width:250px!important;padding:10px!important}#v75-editor-song{max-width:40vw}.v75-hud-chip{min-width:58px}}
+</style>
+<script>
+(function(){
+'use strict';
+
+/* ================================================================
+   RAINBOW v7.5
+   Whole-screen UNIFORM color. No gradient, no background-position,
+   no right-to-left movement. Hue advances continuously at 60deg/sec,
+   meaning exactly one 60-degree rainbow color step per second while
+   remaining fully smooth with no pause/gap.
+   ================================================================ */
+let v75RainbowRAF=null;
+let v75RainbowEnd=null;
+let v75RainbowStart=0;
+function v75RainbowStop(){
+  if(v75RainbowRAF) cancelAnimationFrame(v75RainbowRAF);
+  v75RainbowRAF=null;
+  if(v75RainbowEnd) clearTimeout(v75RainbowEnd);
+  v75RainbowEnd=null;
+  const el=document.getElementById('rainbow-overlay');
+  if(el){el.style.display='none';el.style.opacity='0';el.style.backgroundImage='none';el.style.backgroundColor='transparent';el.style.filter='none';el.style.transition='none';}
+  ['v73-rainbow-pulse','v73-rainbow-sheen','v73-rainbow-vignette'].forEach(id=>{const x=document.getElementById(id);if(x){x.style.display='none';x.style.opacity='0';x.style.animation='none';}});
+}
+function v75RainbowFrame(now){
+  const el=document.getElementById('rainbow-overlay');
+  if(!el)return;
+  const duration=Math.max(0.1,(window.__v75RainbowDuration||2)*1000);
+  const elapsed=now-v75RainbowStart;
+  const p=Math.min(1,elapsed/duration);
+  const hue=(elapsed/1000*60)%360;
+  /* One color fills the ENTIRE overlay. */
+  el.style.backgroundColor=`hsl(${hue}, 100%, 50%)`;
+  el.style.backgroundImage='none';
+  el.style.backgroundSize='100% 100%';
+  el.style.backgroundPosition='50% 50%';
+  el.style.filter='none';
+  el.style.opacity=(p<0.10 ? (p/0.10)*0.42 : p>0.90 ? ((1-p)/0.10)*0.42 : 0.42).toFixed(3);
+  if(p<1){v75RainbowRAF=requestAnimationFrame(v75RainbowFrame);}
+}
+window.triggerRainbowEffect=function(duration){
+  v75RainbowStop();
+  const el=document.getElementById('rainbow-overlay');
+  if(!el)return;
+  window.__v75RainbowDuration=Math.max(0.1,Number(duration)||2);
+  el.style.display='block';
+  el.style.animation='none';
+  el.style.mixBlendMode='normal';
+  el.style.backgroundImage='none';
+  el.style.transition='none';
+  el.style.filter='none';
+  el.style.opacity='0';
+  v75RainbowStart=performance.now();
+  v75RainbowRAF=requestAnimationFrame(v75RainbowFrame);
+  v75RainbowEnd=setTimeout(v75RainbowStop,window.__v75RainbowDuration*1000);
+};
+const v75OldReset=window.resetVisualEffects;
+window.resetVisualEffects=function(){v75RainbowStop();if(typeof v75OldReset==='function')v75OldReset();};
+
+/* ================================================================
+   EDITOR v7.5
+   Game-like rendering. Original editor functions are kept intact;
+   this layer replaces only the final visual renderer and UI layout.
+   ================================================================ */
+let v75Mode='tap';
+let v75EditorReady=false;
+let v75Selected=-1;
+let v75LastTime=0;
+
+function v75Num(v,f=0){const n=Number(v);return Number.isFinite(n)?n:f;}
+function v75Snap(t){const g=v75Num(gridSnapSec,.05);return g>0?Math.round(t/g)*g:t;}
+function v75JudgeY(h){return Math.max(120,h-120);}
+function v75EffectivePx(){return Math.max(50,Math.min(800,v75Num(pxPerSec,180)));}
+function v75GetModeText(){return v75Mode.toUpperCase();}
+function v75EditorTime(){return Math.max(0,v75Num(editorScrollSec,0));}
+
+function v75DrawEditorNoteSkin(ctx,x,y,w,h,lane,isLong){
+  const skin=(userProfile&&userProfile.noteSkin)||'classic';
+  const color=(glowColors||['#00f0ff','#ff0055','#00ff88','#ffee00'])[Math.max(0,Math.min(3,lane))];
+  ctx.save();
+  ctx.fillStyle=isLong?'rgba(255,255,255,.45)':'#fff';
+  if(skin==='round'){
+    ctx.beginPath();ctx.roundRect(x,y,w,h,Math.min(w,h)/2);ctx.fill();
+  }else if(skin==='glow'){
+    if(!isLong){ctx.shadowBlur=15;ctx.shadowColor=color;}
+    ctx.fillStyle=color;ctx.fillRect(x,y,w,h);ctx.shadowBlur=0;
+  }else if(skin==='diamond' && !isLong){
+    ctx.fillStyle=color;ctx.beginPath();
+    ctx.moveTo(x+w/2,y-h/2);ctx.lineTo(x+w,y+h/2);ctx.lineTo(x+w/2,y+h*1.5);ctx.lineTo(x,y+h/2);ctx.fill();
+  }else{
+    ctx.fillRect(x,y,w,h);
+    if(!isLong){ctx.fillStyle='#000';ctx.fillRect(x+8,y+5,Math.max(2,w-16),4);}
+  }
+  ctx.restore();
+}
+
+function v75RenderEditor(){
+  if(activeScreen!=='editor')return;
+  const canvas=eCanvas,ctx=eCtx;
+  if(!canvas||!ctx)return;
+  const rect={width:canvas.clientWidth,height:canvas.clientHeight};
+  const judgeY=v75JudgeY(rect.height), ep=v75EffectivePx(), laneW=rect.width/4;
+  ctx.clearRect(0,0,rect.width,rect.height);
+
+  /* Background mirrors the playfield. */
+  ctx.fillStyle='#02030a';ctx.fillRect(0,0,rect.width,rect.height);
+  const speed=v75Num(systemNoteSpeed,3);
+  const bgOffset=(v75EditorTime()*200*speed)%80;
+  ctx.strokeStyle='rgba(0,240,255,.08)';ctx.lineWidth=1;ctx.beginPath();
+  for(let y=bgOffset-80;y<rect.height;y+=80){ctx.moveTo(0,y);ctx.lineTo(rect.width,y);}
+  for(let x=0;x<=rect.width;x+=laneW){ctx.moveTo(x,0);ctx.lineTo(x,rect.height);}
+  ctx.stroke();
+
+  /* Lane lighting and hand guide. */
+  for(let i=0;i<4;i++){
+    if(keysState&&keysState[i]){ctx.fillStyle='rgba(0,240,255,.12)';ctx.fillRect(i*laneW,0,laneW,rect.height);}
+  }
+
+  /* Judge line = actual game judge line. */
+  ctx.fillStyle='#fff';ctx.fillRect(0,judgeY,rect.width,2);
+  ctx.shadowBlur=10;ctx.shadowColor='#fff';ctx.fillRect(0,judgeY-1,rect.width,1);ctx.shadowBlur=0;
+
+  let visible=0;
+  const notes=Array.isArray(currentNotes)?currentNotes:[];
+  notes.forEach((note,idx)=>{
+    const lane=Math.max(0,Math.min(3,Math.floor(v75Num(note.lane,0))));
+    const rem=v75Num(note.time,0)-v75EditorTime()+v75Num(audioOffset,0);
+    const spdMult=Math.max(.1,v75Num(note.speedMult,1));
+    const adjustedWindow=(2.0/Math.max(.5,speed))/spdMult;
+    const x=lane*laneW;
+    const selected=idx===v75Selected;
+    if(rem<=adjustedWindow+1 && rem>=-1.5)visible++;
+
+    if(note.isLong&&note.endTime!==undefined){
+      const remEnd=v75Num(note.endTime,0)-v75EditorTime()+v75Num(audioOffset,0);
+      const yStart=judgeY-(rem/adjustedWindow)*judgeY;
+      const yEnd=judgeY-(remEnd/adjustedWindow)*judgeY;
+      const top=Math.min(yStart,yEnd),bottom=Math.max(yStart,yEnd);
+      if(bottom>=-40&&top<=rect.height+40){
+        const bodyY=Math.max(-40,top),bodyH=Math.min(rect.height+40,bottom)-bodyY;
+        const color=(glowColors||[])[lane]||'#fff';
+        ctx.save();ctx.fillStyle=color+'55';ctx.fillRect(x+12,bodyY,laneW-24,Math.max(6,bodyH));
+        ctx.strokeStyle=selected?'#fff':color;ctx.lineWidth=selected?3:1;ctx.strokeRect(x+12,bodyY,laneW-24,Math.max(6,bodyH));ctx.restore();
+      }
+    }
+
+    if(rem<=adjustedWindow+0.5&&rem>=-0.5){
+      const y=judgeY-(rem/adjustedWindow)*judgeY;
+      if(y>=-30&&y<=rect.height+30){
+        v75DrawEditorNoteSkin(ctx,x+4,y-8,laneW-8,16,lane,false);
+        if(selected){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(x+2,y-10,laneW-4,20);}
+        if(note.effect&&note.effect!=='none'){
+          ctx.fillStyle='#fff';ctx.font='8px monospace';ctx.fillText(String(note.effect).toUpperCase(),x+8,y+3);
+        }
+      }
+    }
+  });
+
+  /* Time ruler labels: spacious, readable instead of packed lines. */
+  ctx.font='10px "Share Tech Mono", monospace';ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.45)';
+  const stepSec=Math.max(.5,Math.min(4,90/ep));
+  const first=Math.floor(v75EditorTime()/stepSec)*stepSec;
+  for(let t=first;t<=v75EditorTime()+rect.height/ep;t+=stepSec){
+    const y=judgeY-(t-v75EditorTime())*ep;
+    if(y>=20&&y<=rect.height-5){ctx.fillText(t.toFixed(2)+'s',rect.width-8,y-4);ctx.strokeStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(rect.width-55,y);ctx.stroke();}
+  }
+
+  /* Center judge marker. */
+  ctx.fillStyle='rgba(255,0,85,.85)';ctx.fillRect(0,judgeY+2,rect.width,1);
+  if(showHandGuide){ctx.textAlign='center';ctx.font='12px "Press Start 2P"';
+    for(let i=0;i<4;i++){ctx.fillStyle='rgba(255,255,255,.20)';ctx.fillText(String((userKeys&&userKeys[i]||['d','f','j','k'][i])).toUpperCase(),i*laneW+laneW/2,judgeY+42);}
+  }
+
+  const cd=document.getElementById('v75-editor-clock');if(cd){const m=Math.floor(v75EditorTime()/60),s=(v75EditorTime()%60).toFixed(3);cd.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(6,'0');}
+  const vh=document.getElementById('v75-editor-visible');if(vh)vh.textContent=String(visible);
+}
+
+function v75EnsureEditorUI(){
+  const screen=document.getElementById('editor-screen');if(!screen)return;
+  screen.classList.add('v75-editor-fixed');
+  const main=screen.querySelector('.editor-main');if(!main)return;
+  if(!document.getElementById('v75-editor-hud')){
+    const hud=document.createElement('div');hud.id='v75-editor-hud';
+    hud.innerHTML='<div class="v75-hud-box"><div id="v75-editor-song">NO SONG</div><div id="v75-editor-clock">00:00.000</div><div id="v75-editor-status">EDITOR / PLAYFIELD VIEW</div></div><div id="v75-editor-right-hud"><div class="v75-hud-box v75-hud-chip" id="v75-speed-chip">SPEED<b>3.0x</b></div><div class="v75-hud-box v75-hud-chip" id="v75-zoom-chip">PX/S<b>180</b></div><div class="v75-hud-box v75-hud-chip" id="v75-mode-chip">MODE<b>TAP</b></div><div class="v75-hud-box v75-hud-chip">VISIBLE<b id="v75-editor-visible">0</b></div></div>';
+    main.appendChild(hud);
+  }
+  if(!document.getElementById('v75-editor-footer')){
+    const f=document.createElement('div');f.id='v75-editor-footer';
+    f.innerHTML='<span>CLICK=TAP • HOLD/SHIFT+DRAG=LONG • CTRL=SELECT • ALT=4LANE CHORD</span><span>SPACE=PLAY/PAUSE • WHEEL=SCROLL • CTRL+WHEEL=ZOOM</span>';
+    main.appendChild(f);
+  }
+  const side=screen.querySelector('.editor-side');
+  if(side&&!document.getElementById('v75-editor-actions')){
+    const actions=document.createElement('div');actions.id='v75-editor-actions';
+    actions.innerHTML='<button class="editor-btn" id="v75-save">💾 SAVE CHART</button><button class="editor-btn" id="v75-refresh">↻ REFRESH VIEW</button><button class="editor-btn" id="v75-clear-all">🗑 CLEAR ALL</button><button class="editor-btn" id="v75-jump-start">⏮ START</button><button class="editor-btn" id="v75-jump-end">⏭ LAST</button>';
+    side.appendChild(actions);
+    document.getElementById('v75-save').onclick=function(){if(typeof saveToGlobalChart==='function')saveToGlobalChart();if(typeof v74SetStatus==='function')v74SetStatus('CHART SAVED');};
+    document.getElementById('v75-refresh').onclick=function(){v75RenderEditor();};
+    document.getElementById('v75-clear-all').onclick=function(){if(typeof clearCurrentChart==='function')clearCurrentChart();};
+    document.getElementById('v75-jump-start').onclick=function(){editorScrollSec=0;v75LastTime=0;v75RenderEditor();};
+    document.getElementById('v75-jump-end').onclick=function(){const n=Array.isArray(currentNotes)?currentNotes:[];editorScrollSec=n.length?Math.max(0,v75Num(n[n.length-1].time,0)-1):0;v75RenderEditor();};
+    const h=document.createElement('div');h.id='v75-editor-help';h.innerHTML='<b style="color:var(--accent-neon)">EDITOR CONTROLS</b><br>• TAP: click to add/remove<br>• HOLD: drag to create long note<br>• SELECT: Ctrl+click / SELECT mode<br>• ALT+click: 4-lane chord<br>• HOLD FIX / CHORD FIX / DEDUPE / AUTO REPAIR remain available<br>• CLEAR ALL is kept and uses the original function';
+    side.appendChild(h);
+  }
+  const s=document.getElementById('v75-speed-chip');if(s)s.querySelector('b').textContent=v75Num(systemNoteSpeed,3).toFixed(1)+'x';
+  const z=document.getElementById('v75-zoom-chip');if(z)z.querySelector('b').textContent=Math.round(v75EffectivePx());
+  const m=document.getElementById('v75-mode-chip');if(m)m.querySelector('b').textContent=v75GetModeText();
+  const song=document.getElementById('v75-editor-song');if(song)song.textContent=(currentSong?currentSong.title:'NO SONG')+' // '+String(currentDiff||'normal').toUpperCase();
+}
+
+function v75Loop(){
+  if(activeScreen!=='editor')return;
+  v75EnsureEditorUI();v75RenderEditor();
+  requestAnimationFrame(v75Loop);
+}
+
+/* Keep the original renderer available as a fallback while using the
+   game-like v7.5 renderer for the visible editor. */
+window.__v75OriginalRenderEditor=window.renderEditor;
+window.renderEditor=v75RenderEditor;
+
+/* Existing speed controls stay authoritative; editor reads the same variable. */
+const v75OldUpdateZoom=window.updateZoom;
+window.updateZoom=function(){if(typeof v75OldUpdateZoom==='function')v75OldUpdateZoom();v75RenderEditor();};
+
+/* Re-sync after entering editor/Test Play. */
+const v75OldStartEditor=window.startEditor;
+window.startEditor=function(){if(typeof v75OldStartEditor==='function')v75OldStartEditor.apply(this,arguments);setTimeout(()=>{v75EnsureEditorUI();v75RenderEditor();},40);};
+
+/* Editor keyboard mode shortcuts only; existing gameplay keys stay intact. */
+window.addEventListener('keydown',function(e){
+  if(activeScreen!=='editor')return;
+  if(e.target&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+  if(e.key==='1'){v75Mode='tap';}
+  else if(e.key==='2'){v75Mode='hold';}
+  else if(e.key==='3'){v75Mode='select';}
+  else return;
+  e.preventDefault();
+  const tools=document.querySelectorAll('#v74-mode-tools [data-mode]');tools.forEach(b=>b.classList.toggle('v74-mode-active',b.dataset.mode===v75Mode));
+  const old=document.getElementById('v74-editor-mode');if(old)old.textContent=v75Mode.toUpperCase();
+  v75RenderEditor();
+},true);
+
+window.addEventListener('DOMContentLoaded',function(){setTimeout(()=>{v75EnsureEditorUI();v75Loop();},120);});
+setTimeout(()=>{v75EnsureEditorUI();},200);
+})();
+</script>
+
 </body>
 </html>
 <!-- ================================================================
