@@ -3452,6 +3452,198 @@ setTimeout(()=>{if(document.readyState!=='loading')v76AddPanel();},250);
 </script>
 
 </body>
+
+<!-- ================================================================
+     STRIKERS!! v7.9 EDITOR CLARITY + RAINBOW COLOR CONTINUITY PATCH
+     ADDITIVE ONLY: all existing functions/data remain in place.
+     ================================================================ -->
+<style>
+/* ===== v7.9 editor clarity ===== */
+#editor-screen.v79-editor-clear{
+  gap:20px!important;padding:16px!important;align-items:stretch!important;
+  background:#01020a!important;
+}
+#editor-screen.v79-editor-clear .editor-side{
+  flex:0 0 360px!important;width:360px!important;min-width:360px!important;
+  height:calc(100vh - 32px)!important;padding:18px!important;gap:14px!important;
+  border:1px solid rgba(0,240,255,.25)!important;border-right:2px solid rgba(0,240,255,.34)!important;
+  border-radius:10px!important;overflow-y:auto!important;overflow-x:hidden!important;
+  background:linear-gradient(180deg,rgba(3,7,18,.985),rgba(1,2,8,.98))!important;
+  box-shadow:0 0 32px rgba(0,240,255,.07)!important;
+}
+#editor-screen.v79-editor-clear .editor-side>h3{
+  font-size:14px!important;letter-spacing:1px!important;margin:0 0 2px!important;
+}
+#editor-screen.v79-editor-clear .editor-time-display{
+  margin:0!important;padding:12px 8px!important;font-size:21px!important;
+  border:1px solid rgba(0,240,255,.26)!important;border-radius:7px!important;
+  background:rgba(0,0,0,.34)!important;
+}
+#editor-screen.v79-editor-clear .editor-controls-group{
+  padding:14px!important;gap:11px!important;margin:0!important;
+  border:1px solid rgba(255,255,255,.09)!important;border-radius:8px!important;
+  background:rgba(255,255,255,.025)!important;
+}
+#editor-screen.v79-editor-clear .editor-controls-group>div:first-child{
+  letter-spacing:.4px!important;margin-bottom:2px!important;
+}
+#editor-screen.v79-editor-clear .editor-btn{
+  min-height:40px!important;padding:8px 7px!important;font-size:8px!important;line-height:1.35!important;
+}
+#editor-screen.v79-editor-clear .cyber-select{min-height:36px!important;}
+#editor-screen.v79-editor-clear .editor-main{
+  flex:1 1 auto!important;min-width:0!important;height:calc(100vh - 32px)!important;
+  border:1px solid rgba(0,240,255,.24)!important;border-radius:10px!important;overflow:hidden!important;
+  background:radial-gradient(circle at 50% 20%,rgba(0,240,255,.08),transparent 38%),#02030a!important;
+  box-shadow:inset 0 0 45px rgba(0,0,0,.35),0 0 25px rgba(0,240,255,.04)!important;
+}
+#editor-screen.v79-editor-clear #editorCanvas{cursor:crosshair!important;touch-action:none!important;}
+#v79-editor-guide{
+  position:absolute;left:14px;right:14px;bottom:44px;z-index:24;pointer-events:none;
+  display:flex;justify-content:center;gap:8px;flex-wrap:wrap;
+  font:9px 'Share Tech Mono',monospace;color:#b8bec9;
+}
+.v79-guide-chip{padding:6px 8px;border:1px solid rgba(255,255,255,.09);background:rgba(2,4,12,.68);border-radius:5px;backdrop-filter:blur(5px)}
+#v79-editor-titlebar{
+  position:absolute;left:14px;right:14px;top:14px;z-index:24;pointer-events:none;
+  display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  font:9px 'Press Start 2P',monospace;
+}
+.v79-titlebox{padding:8px 10px;background:rgba(2,4,12,.74);border:1px solid rgba(255,255,255,.09);border-radius:5px;backdrop-filter:blur(5px)}
+#v79-current-action{color:#00ff88}.v79-title-muted{color:#7e8590}
+#v79-sidebar-help{
+  padding:12px 13px;border:1px solid rgba(0,240,255,.12);border-radius:8px;background:rgba(0,240,255,.025);
+  color:#8e98a7;font:10px 'Share Tech Mono',monospace;line-height:1.65;
+}
+#v79-sidebar-help b{color:#fff}
+#v79-record-focus{
+  padding:10px 12px;border-left:3px solid #ff0055;background:rgba(255,0,85,.045);
+  color:#aab0bd;font:10px 'Share Tech Mono',monospace;line-height:1.55;border-radius:4px;
+}
+#v79-statline{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:2px}
+.v79-stat{padding:7px 4px;text-align:center;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:5px;font:8px 'Share Tech Mono',monospace;color:#7f8997}
+.v79-stat b{display:block;color:#fff;font-size:12px;margin-top:3px}
+@media(max-width:900px){
+ #editor-screen.v79-editor-clear{gap:8px!important;padding:8px!important}
+ #editor-screen.v79-editor-clear .editor-side{flex-basis:285px!important;width:285px!important;min-width:285px!important;height:calc(100vh - 16px)!important;padding:11px!important;gap:9px!important}
+ #editor-screen.v79-editor-clear .editor-main{height:calc(100vh - 16px)!important}
+}
+</style>
+<script>
+(function(){
+'use strict';
+
+/* ---------- editor clarity layer ---------- */
+function v79EnsureEditorUI(){
+  const screen=document.getElementById('editor-screen');
+  if(!screen)return;
+  screen.classList.add('v79-editor-clear');
+  const main=screen.querySelector('.editor-main');
+  const side=screen.querySelector('.editor-side');
+  if(side && !document.getElementById('v79-record-focus')){
+    const info=document.createElement('div');
+    info.id='v79-record-focus';
+    info.innerHTML='<b>LIVE EDITOR</b><br>ノーツはゲームと同じ4レーン。<br>REC中は入力位置をリアルタイム補正。HOLD / CHORDもその場で反映。';
+    const ref=document.getElementById('v77-live-recorder');
+    if(ref) side.insertBefore(info,ref); else side.appendChild(info);
+  }
+  if(side && !document.getElementById('v79-sidebar-help')){
+    const help=document.createElement('div');
+    help.id='v79-sidebar-help';
+    help.innerHTML='<b>操作ガイド</b><br>クリック：ノーツ追加 / 削除<br>ドラッグ：HOLD作成<br>Space：再生 / 停止<br>ホイール：時間移動<br>Ctrl+Z / Ctrl+Y：Undo / Redo<br>Delete：選択ノーツ削除';
+    side.appendChild(help);
+  }
+  if(side && !document.getElementById('v79-statline')){
+    const st=document.createElement('div');st.id='v79-statline';
+    st.innerHTML='<div class="v79-stat">NOTES<b id="v79-notes">0</b></div><div class="v79-stat">HOLD<b id="v79-holds">0</b></div><div class="v79-stat">CHORD<b id="v79-chords">0</b></div><div class="v79-stat">SPEED<b id="v79-speed">0.0x</b></div>';
+    side.appendChild(st);
+  }
+  if(main && !document.getElementById('v79-editor-titlebar')){
+    const top=document.createElement('div');top.id='v79-editor-titlebar';
+    top.innerHTML='<div class="v79-titlebox"><span id="v79-current-action">CHART EDITOR</span><br><span class="v79-title-muted">LIVE TIMELINE</span></div><div class="v79-titlebox"><span class="v79-title-muted">PLAY SPEED </span><span id="v79-speed-top">3.0x</span><span class="v79-title-muted"> • ZOOM </span><span id="v79-zoom-top">180</span></div>';
+    main.appendChild(top);
+  }
+  if(main && !document.getElementById('v79-editor-guide')){
+    const g=document.createElement('div');g.id='v79-editor-guide';
+    g.innerHTML='<span class="v79-guide-chip">←→ 微調整</span><span class="v79-guide-chip">CTRL+Z UNDO</span><span class="v79-guide-chip">CTRL+Y REDO</span><span class="v79-guide-chip">WHEEL SCROLL</span>';
+    main.appendChild(g);
+  }
+  v79RefreshStats();
+}
+function v79RefreshStats(){
+  const notes=currentNotes||[];
+  const n=document.getElementById('v79-notes');if(n)n.textContent=notes.length;
+  const h=document.getElementById('v79-holds');if(h)h.textContent=notes.filter(x=>x&&x.isLong).length;
+  let chords=0;
+  const sorted=notes.slice().sort((a,b)=>Number(a.time)-Number(b.time));
+  for(let i=1;i<sorted.length;i++) if(Math.abs(Number(sorted[i].time)-Number(sorted[i-1].time))<=0.07) chords++;
+  const c=document.getElementById('v79-chords');if(c)c.textContent=chords;
+  const sp=(Number(systemNoteSpeed)||3).toFixed(1)+'x';
+  const s=document.getElementById('v79-speed');if(s)s.textContent=sp;
+  const st=document.getElementById('v79-speed-top');if(st)st.textContent=sp;
+  const z=document.getElementById('v79-zoom-top');if(z)z.textContent=String(Math.round(Number(pxPerSec)||180));
+}
+const V79_prevRender=renderEditor;
+renderEditor=function(){
+  V79_prevRender();
+  v79RefreshStats();
+  const a=document.getElementById('v79-current-action');
+  if(a){
+    if(typeof isRecording!=='undefined' && isRecording) a.textContent=isRecordingPaused?'REC PAUSED':'● REC LIVE';
+    else a.textContent='CHART EDITOR';
+  }
+};
+const V79_prevStartEditor=startEditor;
+startEditor=function(){
+  V79_prevStartEditor();
+  setTimeout(v79EnsureEditorUI,0);
+};
+const V79_prevChangeScreen=changeScreen;
+changeScreen=function(name){
+  V79_prevChangeScreen(name);
+  if(name==='editor')setTimeout(v79EnsureEditorUI,0);
+};
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v79EnsureEditorUI,120));
+setTimeout(()=>{if(document.readyState!=='loading')v79EnsureEditorUI();},300);
+
+/* ---------- rainbow: full-screen, uniform, continuous, no fade flicker ---------- */
+const rb=document.getElementById('rainbow-overlay');
+if(rb){
+  let raf=null,endTimer=null,start=0,dur=0;
+  const TWO=Math.PI*2;
+  function rbStop(){
+    if(raf)cancelAnimationFrame(raf);raf=null;
+    if(endTimer)clearTimeout(endTimer);endTimer=null;
+    rb.style.display='none';rb.style.opacity='0';rb.style.backgroundImage='none';rb.style.backgroundColor='transparent';rb.style.filter='none';rb.style.boxShadow='none';
+  }
+  function rbFrame(now){
+    const elapsed=Math.max(0,now-start);
+    const hue=(elapsed/750*60)%360; /* exactly +60deg every 0.75s */
+    /* Soft luminance breathing without changing the whole-screen single hue. */
+    const light=50+2*Math.sin(elapsed/1000*TWO/1.5);
+    rb.style.backgroundColor='hsl('+hue.toFixed(3)+',100%,'+light.toFixed(2)+'%)';
+    rb.style.opacity='0.62';
+    rb.style.backgroundImage='none';
+    rb.style.backgroundPosition='50% 50%';
+    rb.style.backgroundSize='100% 100%';
+    rb.style.filter='none';
+    if(elapsed<dur*1000)raf=requestAnimationFrame(rbFrame);
+  }
+  window.triggerRainbowEffect=function(duration){
+    rbStop();
+    dur=Math.max(.75,Number(duration)||2);
+    rb.style.display='block';rb.style.animation='none';rb.style.transition='none';rb.style.mixBlendMode='normal';
+    rb.style.backgroundImage='none';rb.style.filter='none';rb.style.opacity='0.62';rb.style.backgroundColor='hsl(0,100%,50%)';rb.style.boxShadow='none';
+    start=performance.now();
+    raf=requestAnimationFrame(rbFrame);
+    endTimer=setTimeout(rbStop,dur*1000);
+  };
+  const oldReset=window.resetVisualEffects;
+  window.resetVisualEffects=function(){rbStop();if(typeof oldReset==='function')oldReset();};
+}
+})();
+</script>
+
 </html>
 <!-- ================================================================
      STRIKERS!! v7.4 EDITOR OVERHAUL - ADDITIVE ONLY
