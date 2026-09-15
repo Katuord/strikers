@@ -3255,6 +3255,202 @@ setTimeout(()=>{v75EnsureEditorUI();},200);
 })();
 </script>
 
+<style>
+/* v7.6 recorder enhancement: additive, non-destructive */
+#v76-rec-panel{margin-top:12px;padding:12px;border:1px solid rgba(0,240,255,.16);background:rgba(3,6,18,.65);border-radius:6px}
+#v76-rec-title{font:9px 'Press Start 2P',monospace;color:var(--accent-neon);letter-spacing:1px;margin-bottom:10px}
+#v76-rec-status{font:11px 'Share Tech Mono',monospace;color:#ddd;line-height:1.55;min-height:32px;padding:7px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:4px;margin-bottom:9px}
+#v76-rec-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#v76-rec-tools button{min-height:38px!important;padding:8px 7px!important;font-size:8px!important;white-space:normal;line-height:1.2}
+#v76-rec-help{margin-top:10px;font:11px 'Share Tech Mono',monospace;color:#8d8da5;line-height:1.55}
+#v76-rec-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:9px}
+.v76-metric{padding:7px 5px;text-align:center;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:4px;font:9px 'Share Tech Mono',monospace;color:#aaa}
+.v76-metric b{display:block;color:#fff;font-size:13px;margin-top:2px}
+@media(max-width:900px){#v76-rec-tools{grid-template-columns:1fr}.v76-metric{font-size:8px}}
+</style>
+<script>
+(function(){
+'use strict';
+
+/* Keep existing recording behavior. We only observe key timing while REC is active. */
+let v76Events=[];
+let v76SessionStart=0;
+let v76Held={0:null,1:null,2:null,3:null};
+let v76LastStatus='READY';
+let v76AutoCorrectOnStop=true;
+const V76_OLD_TOGGLE_REC = toggleRecAction;
+const V76_OLD_STOP_REC = stopRecording;
+const V76_OLD_START_EDITOR = startEditor;
+
+function v76Num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
+function v76Clone(){return JSON.parse(JSON.stringify(currentNotes||[]));}
+function v76Sort(){currentNotes.sort((a,b)=>v76Num(a.time)-v76Num(b.time)||v76Num(a.lane)-v76Num(b.lane));}
+function v76SetStatus(s){v76LastStatus=s;const el=document.getElementById('v76-rec-status');if(el)el.textContent=s;}
+function v76RefreshMetrics(){
+  const events=document.getElementById('v76-rec-events');
+  const holds=document.getElementById('v76-rec-holds');
+  const chords=document.getElementById('v76-rec-chords');
+  if(events)events.textContent=String(v76Events.length);
+  if(holds)holds.textContent=String(v76Events.filter(e=>v76Num(e.duration)>0.12).length);
+  if(chords){let c=0;for(let i=0;i<v76Events.length;){let j=i+1;while(j<v76Events.length&&Math.abs(v76Num(v76Events[j].time)-v76Num(v76Events[i].time))<=0.07)j++;if(j-i>1)c++;i=j;}chords.textContent=String(c);}
+}
+function v76FindNearest(lane,time,window=0.09){
+  let best=-1,bd=Infinity;
+  (currentNotes||[]).forEach((n,i)=>{if(v76Num(n.lane,-1)!==lane)return;const d=Math.abs(v76Num(n.time)-time);if(d<bd&&d<=window){bd=d;best=i;}});
+  return best;
+}
+function v76RecordKeyDown(e){
+  if(activeScreen!=='editor'||!isRecording||isRecordingPaused||e.repeat)return;
+  const map=getKeyMapping();const lane=map[e.key.toLowerCase()];
+  if(lane===undefined)return;
+  const t=Number(v76Num(editorScrollSec).toFixed(3));
+  v76Held[lane]={time:t,wall:performance.now(),key:e.key.toLowerCase()};
+  v76Events.push({lane,time:t,up:null,duration:0,wall:performance.now()});
+  v76RefreshMetrics();
+}
+function v76RecordKeyUp(e){
+  if(activeScreen!=='editor'||!isRecording||isRecordingPaused)return;
+  const map=getKeyMapping();const lane=map[e.key.toLowerCase()];
+  if(lane===undefined)return;
+  const h=v76Held[lane];if(!h)return;
+  const nowT=Number(v76Num(editorScrollSec).toFixed(3));
+  const dur=Math.max(0,nowT-h.time);
+  for(let i=v76Events.length-1;i>=0;i--){const ev=v76Events[i];if(ev.lane===lane&&Math.abs(ev.time-h.time)<0.001&&ev.up===null){ev.up=nowT;ev.duration=dur;break;}}
+  v76Held[lane]=null;
+  v76RefreshMetrics();
+}
+function v76ApplyRecordingCorrection(){
+  if(!Array.isArray(v76Events)||!v76Events.length){v76SetStatus('REC CORRECT • 記録イベントなし');return;}
+  const before=v76Clone();
+  let holdCount=0,chordCount=0,dedupeCount=0;
+  /* 1) Convert observed long key presses into actual long notes without deleting existing notes. */
+  v76Events.forEach(ev=>{
+    if(v76Num(ev.duration)>0.12){
+      const idx=v76FindNearest(ev.lane,ev.time,0.10);
+      if(idx>=0){
+        const n=currentNotes[idx];
+        const end=Math.max(v76Num(n.time)+0.05, v76Num(ev.time)+v76Num(ev.duration));
+        n.isLong=true;n.endTime=Number(end.toFixed(3));holdCount++;
+      }
+    }
+  });
+  /* 2) Group near-simultaneous recorded starts and normalize to one timestamp. */
+  const sorted=v76Events.slice().sort((a,b)=>v76Num(a.time)-v76Num(b.time)||a.lane-b.lane);
+  for(let i=0;i<sorted.length;){
+    let j=i+1;const group=[sorted[i]];
+    while(j<sorted.length&&Math.abs(v76Num(sorted[j].time)-v76Num(sorted[i].time))<=0.07){group.push(sorted[j]);j++;}
+    if(group.length>=2){
+      const avg=group.reduce((a,e)=>a+v76Num(e.time),0)/group.length;
+      const snap=v76Num(gridSnapSec)>0?Number((Math.round(avg/gridSnapSec)*gridSnapSec).toFixed(3)):Number(avg.toFixed(3));
+      let touched=false;
+      group.forEach(ev=>{
+        const idx=v76FindNearest(ev.lane,ev.time,0.10);
+        if(idx>=0){
+          const n=currentNotes[idx];
+          const delta=snap-v76Num(n.time);
+          n.time=snap;
+          if(n.isLong&&n.endTime!==undefined)n.endTime=Number((v76Num(n.endTime)+delta).toFixed(3));
+          touched=true;
+        }
+      });
+      if(touched)chordCount++;
+    }
+    i=j;
+  }
+  /* 3) Remove duplicate lane/time pairs created by very rapid repeated input. */
+  const seen=new Set();
+  const kept=[];
+  (currentNotes||[]).forEach(n=>{
+    const k=v76Num(n.lane,-1)+'@'+v76Num(n.time).toFixed(3);
+    if(seen.has(k)){dedupeCount++;return;}seen.add(k);kept.push(n);
+  });
+  currentNotes=kept;v76Sort();saveToGlobalChart();
+  if(typeof v71PushHistory==='function'){v71PushHistory('rec-correction');}
+  const changed=JSON.stringify(before)!==JSON.stringify(currentNotes);
+  v76SetStatus('REC CORRECT • HOLD '+holdCount+' • CHORD '+chordCount+' • DEDUPE '+dedupeCount+(changed?' • SAVED':' • NO CHANGE'));
+  if(typeof v71UpdateInfo==='function')v71UpdateInfo();
+  v76RefreshMetrics();
+}
+function v76ClearSession(){
+  v76Events=[];v76Held=[null,null,null,null];v76SessionStart=0;v76RefreshMetrics();v76SetStatus('REC SESSION RESET • 譜面データは削除していません');
+}
+function v76QuantizeRecording(){
+  if(!v76Events.length){v76SetStatus('REC GRID • 記録イベントなし');return;}
+  const before=v76Clone();const snap=v76Num(gridSnapSec);if(!(snap>0)){v76SetStatus('REC GRID • SNAP=FREE');return;}
+  let changed=0;
+  v76Events.forEach(ev=>{const idx=v76FindNearest(ev.lane,ev.time,0.10);if(idx>=0){const n=currentNotes[idx];const old=n.time;const nt=Number((Math.round(v76Num(old)/snap)*snap).toFixed(3));const d=nt-old;n.time=nt;if(n.isLong&&n.endTime!==undefined)n.endTime=Number((v76Num(n.endTime)+d).toFixed(3));if(nt!==old)changed++;}});
+  v76Sort();saveToGlobalChart();if(typeof v71PushHistory==='function')v71PushHistory('rec-grid');
+  v76SetStatus('REC GRID • '+changed+' NOTES ALIGNED');
+}
+function v76AddPanel(){
+  const editor=document.getElementById('editor-screen');if(!editor)return;
+  const side=editor.querySelector('.editor-side');if(!side||document.getElementById('v76-rec-panel'))return;
+  const panel=document.createElement('div');panel.id='v76-rec-panel';
+  panel.innerHTML='<div id="v76-rec-title">🎙 RECORDER CONTROL</div>'+
+    '<div id="v76-rec-status">READY • 長押し/同時押し補正待機</div>'+
+    '<div id="v76-rec-tools">'+
+      '<button class="editor-btn" id="v76-correct">✨ REC CORRECT</button>'+
+      '<button class="editor-btn" id="v76-grid">▦ GRID CORRECT</button>'+
+      '<button class="editor-btn" id="v76-reset">↺ RESET SESSION</button>'+
+      '<button class="editor-btn" id="v76-save">💾 SAVE NOW</button>'+
+    '</div>'+
+    '<div id="v76-rec-metrics">'+
+      '<div class="v76-metric">KEY EVENTS<b id="v76-rec-events">0</b></div>'+
+      '<div class="v76-metric">HOLDS<b id="v76-rec-holds">0</b></div>'+
+      '<div class="v76-metric">CHORDS<b id="v76-rec-chords">0</b></div>'+
+    '</div>'+
+    '<div id="v76-rec-help">REC STARTは従来どおり0.000秒から開始。<br>REC中のキー押下時間を記録し、STOP後にHOLDへ変換。7/100秒以内の開始はCHORDとして補正。既存ノーツは残したまま整理します。</div>';
+  side.appendChild(panel);
+  document.getElementById('v76-correct').onclick=v76ApplyRecordingCorrection;
+  document.getElementById('v76-grid').onclick=v76QuantizeRecording;
+  document.getElementById('v76-reset').onclick=v76ClearSession;
+  document.getElementById('v76-save').onclick=()=>{saveToGlobalChart();v76SetStatus('SAVED • '+(currentNotes||[]).length+' NOTES');};
+  const auto=document.createElement('button'); auto.className='editor-btn'; auto.id='v76-auto'; auto.textContent='AUTO CORRECT: ON'; auto.onclick=()=>{v76AutoCorrectOnStop=!v76AutoCorrectOnStop;auto.textContent='AUTO CORRECT: '+(v76AutoCorrectOnStop?'ON':'OFF');v76SetStatus('AUTO CORRECT '+(v76AutoCorrectOnStop?'ON':'OFF'));}; document.getElementById('v76-rec-tools').appendChild(auto);
+  v76RefreshMetrics();
+}
+
+window.addEventListener('keydown',v76RecordKeyDown,true);
+window.addEventListener('keyup',v76RecordKeyUp,true);
+
+toggleRecAction=function(){
+  const wasRecording=!!isRecording;
+  if(!wasRecording){
+    v76Events=[];v76Held=[null,null,null,null];v76SessionStart=performance.now();
+    v76SetStatus('REC LIVE • 00:00.000 • HOLD/CHORD TRACKING ON');
+    v76RefreshMetrics();
+  }
+  V76_OLD_TOGGLE_REC();
+  if(wasRecording && !isRecording){
+    v76SetStatus('REC STOP • '+v76Events.length+' EVENTS • press REC CORRECT');
+    v76RefreshMetrics();
+  }
+};
+
+stopRecording=function(){
+  V76_OLD_STOP_REC();
+  if(!isRecording){
+    v76SetStatus('REC STOP • '+v76Events.length+' EVENTS • HOLD/CHORD補正'+(v76AutoCorrectOnStop?' AUTO':' READY'));
+    v76RefreshMetrics();
+    if(v76AutoCorrectOnStop && v76Events.length) v76ApplyRecordingCorrection();
+  }
+};
+
+startEditor=function(){
+  V76_OLD_START_EDITOR();
+  setTimeout(v76AddPanel,0);
+};
+
+const V76_OLD_CHANGE_SCREEN=changeScreen;
+changeScreen=function(name){
+  V76_OLD_CHANGE_SCREEN(name);
+  if(name==='editor')setTimeout(v76AddPanel,0);
+};
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v76AddPanel,120));
+setTimeout(()=>{if(document.readyState!=='loading')v76AddPanel();},250);
+})();
+</script>
+
 </body>
 </html>
 <!-- ================================================================
@@ -3678,5 +3874,279 @@ changeScreen=function(screenName){
 
 document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{v74EnsureUI();updateZoom();},60));
 setTimeout(()=>{if(document.readyState!=='loading') {v74EnsureUI();updateZoom();}},120);
+})();
+</script>
+
+<!-- ================================================================
+     STRIKERS!! v7.7 LIVE RECORDER CORRECTION PATCH
+     Additive/non-destructive: existing functions and data stay intact.
+     Correction happens DURING recording, not only after STOP.
+     ================================================================ -->
+<style>
+#v77-live-recorder{margin-top:10px;padding:10px;border:1px solid rgba(0,255,136,.22);background:linear-gradient(180deg,rgba(0,20,24,.72),rgba(0,8,18,.72));border-radius:6px;box-shadow:inset 0 0 18px rgba(0,255,136,.025)}
+#v77-live-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#v77-live-head-title{font:9px 'Press Start 2P',monospace;color:#00ff88;letter-spacing:1px}
+#v77-live-dot{width:7px;height:7px;border-radius:50%;background:#555;box-shadow:0 0 0 transparent;transition:.2s}
+#v77-live-dot.on{background:#00ff88;box-shadow:0 0 10px #00ff88;animation:v77DotPulse .8s infinite alternate}
+@keyframes v77DotPulse{from{opacity:.55;transform:scale(.85)}to{opacity:1;transform:scale(1.15)}}
+#v77-live-status{font:10px 'Share Tech Mono',monospace;color:#dcebe3;line-height:1.5;min-height:26px;padding:6px 7px;border:1px solid rgba(0,255,136,.12);background:rgba(0,255,136,.035);border-radius:4px;margin-bottom:8px}
+#v77-live-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#v77-live-grid button{min-height:34px!important;padding:6px 4px!important;font-size:7px!important;line-height:1.2;white-space:normal}
+#v77-live-options{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}
+.v77-live-opt{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:5px 6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:4px;font:8px 'Share Tech Mono',monospace;color:#9fa9a3}
+.v77-live-opt input{width:62px!important;height:26px!important;padding:3px 5px!important;font-size:9px!important}
+#v77-live-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}
+.v77-live-stat{padding:5px 2px;text-align:center;background:rgba(255,255,255,.018);border:1px solid rgba(255,255,255,.05);border-radius:4px;font:7px 'Share Tech Mono',monospace;color:#8e9791}
+.v77-live-stat b{display:block;color:#fff;font-size:12px;margin-top:2px}
+#v77-live-tip{margin-top:7px;font:8px 'Share Tech Mono',monospace;color:#69746f;line-height:1.45}
+@media(max-width:900px){#v77-live-options{grid-template-columns:1fr}.v77-live-opt{font-size:8px}}
+</style>
+<script>
+(function(){
+'use strict';
+
+/* v7.7 live recorder state. The original recorder remains untouched. */
+let v77LiveEnabled=true;
+let v77LiveSnap=true;
+let v77LiveChord=true;
+let v77LiveHold=true;
+let v77ChordWindow=0.07;
+let v77HoldThreshold=0.12;
+let v77LiveEvents=[];
+let v77LiveHeld=[null,null,null,null];
+let v77LiveFixed=0;
+let v77LiveHoldCount=0;
+let v77LiveChordCount=0;
+let v77LastChordKey='';
+let v77SaveTimer=null;
+let v77LiveLastLane=-1;
+
+function v77n(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
+function v77snap(t){
+  const x=v77n(t);
+  const g=v77n(gridSnapSec);
+  return v77LiveSnap&&g>0?Number((Math.round(x/g)*g).toFixed(3)):Number(x.toFixed(3));
+}
+function v77set(s){
+  const el=document.getElementById('v77-live-status');
+  if(el)el.textContent=s;
+}
+function v77refresh(){
+  const a=document.getElementById('v77-live-events');
+  const b=document.getElementById('v77-live-holds');
+  const c=document.getElementById('v77-live-chords');
+  const d=document.getElementById('v77-live-fixed');
+  const dot=document.getElementById('v77-live-dot');
+  if(a)a.textContent=String(v77LiveEvents.length);
+  if(b)b.textContent=String(v77LiveHoldCount);
+  if(c)c.textContent=String(v77LiveChordCount);
+  if(d)d.textContent=String(v77LiveFixed);
+  if(dot)dot.classList.toggle('on',!!(isRecording&&!isRecordingPaused));
+}
+function v77find(lane,t,window=0.14){
+  let best=null,bd=Infinity;
+  (currentNotes||[]).forEach(n=>{
+    if(v77n(n.lane,-1)!==lane)return;
+    const d=Math.abs(v77n(n.time)-v77n(t));
+    if(d<bd&&d<=window){bd=d;best=n;}
+  });
+  return best;
+}
+function v77eventForNote(n,lane){
+  let best=null,bd=Infinity;
+  v77LiveEvents.forEach(ev=>{
+    if(ev.lane!==lane)return;
+    const d=Math.abs(v77n(ev.noteTime)-v77n(n.time));
+    if(d<bd){bd=d;best=ev;}
+  });
+  return best;
+}
+function v77repairRecent(lane,rawTime){
+  if(!v77LiveEnabled)return;
+  const note=v77find(lane,rawTime,.13);
+  if(!note)return;
+  const before=v77n(note.time);
+  const snapped=v77snap(before);
+  if(snapped!==before){
+    note.time=snapped;
+    if(note.isLong&&note.endTime!==undefined)note.endTime=Number((v77n(note.endTime)+(snapped-before)).toFixed(3));
+    v77LiveFixed++;
+  }
+  v77LiveEvents.forEach(ev=>{
+    if(ev.lane===lane&&Math.abs(v77n(ev.time)-v77n(rawTime))<=.13)ev.noteTime=note.time;
+  });
+  if(v77LiveChord)v77ChordRepair(note.time);
+  currentNotes.sort((a,b)=>v77n(a.time)-v77n(b.time)||v77n(a.lane)-v77n(b.lane));
+  v77refresh();
+}
+function v77ChordRepair(time){
+  if(!v77LiveChord)return;
+  const target=v77n(time);
+  const group=v77LiveEvents.filter(ev=>Math.abs(v77n(ev.time)-target)<=v77ChordWindow);
+  if(group.length<2)return;
+  const canonical=v77snap(Math.min(...group.map(ev=>v77n(ev.time))));
+  const lanes=group.map(ev=>ev.lane).sort((a,b)=>a-b);
+  const groupKey=canonical.toFixed(3)+'|'+lanes.join(',');
+  let touched=false;
+  group.forEach(ev=>{
+    ev.noteTime=canonical;
+    const note=v77find(ev.lane,ev.noteTime,.16);
+    if(note){
+      const old=v77n(note.time);
+      if(old!==canonical){
+        const delta=canonical-old;
+        note.time=canonical;
+        if(note.isLong&&note.endTime!==undefined)note.endTime=Number((v77n(note.endTime)+delta).toFixed(3));
+        v77LiveFixed++;touched=true;
+      }
+    }
+  });
+  if(touched&&groupKey!==v77LastChordKey){v77LiveChordCount++;v77LastChordKey=groupKey;}
+}
+function v77keydown(e){
+  if(activeScreen!=='editor'||!isRecording||isRecordingPaused||e.repeat||!v77LiveEnabled)return;
+  const map=getKeyMapping();
+  const lane=map[e.key.toLowerCase()];
+  if(lane===undefined)return;
+  const raw=Number(v77n(editorScrollSec).toFixed(3));
+  const rec={lane,time:raw,noteTime:v77snap(raw),up:null,duration:0,wall:performance.now()};
+  v77LiveHeld[lane]=rec;
+  v77LiveEvents.push(rec);
+  v77LiveLastLane=lane;
+  /* The original recorder adds the note in its normal keydown handler.
+     We correct that freshly-added note on the next task, during REC. */
+  setTimeout(()=>v77repairRecent(lane,raw),0);
+  v77set('● REC LIVE • '+v77snap(raw).toFixed(3)+'s • LANE '+(lane+1)+' • SNAP/CHORD/HOLD ACTIVE');
+  v77refresh();
+}
+function v77keyup(e){
+  if(activeScreen!=='editor'||!isRecording||isRecordingPaused||!v77LiveEnabled)return;
+  const map=getKeyMapping();
+  const lane=map[e.key.toLowerCase()];
+  if(lane===undefined)return;
+  const rec=v77LiveHeld[lane];
+  if(!rec)return;
+  const endRaw=Number(v77n(editorScrollSec).toFixed(3));
+  const duration=Math.max(0,endRaw-v77n(rec.time));
+  rec.up=endRaw;rec.duration=duration;
+  const note=v77find(lane,rec.noteTime,.16);
+  if(note){
+    if(v77LiveHold&&duration>=v77HoldThreshold){
+      const start=v77n(note.time);
+      const end=Math.max(start+.05,Number((start+duration).toFixed(3)));
+      const wasLong=!!note.isLong;
+      note.isLong=true;note.endTime=end;
+      if(!wasLong)v77LiveHoldCount++;
+      v77set('● HOLD LIVE • L'+(lane+1)+' • '+start.toFixed(3)+' → '+end.toFixed(3)+'s');
+    }else{
+      v77set('● TAP LIVE • L'+(lane+1)+' • '+v77n(note.time).toFixed(3)+'s');
+    }
+    if(v77LiveChord)v77ChordRepair(note.time);
+    currentNotes.sort((a,b)=>v77n(a.time)-v77n(b.time)||v77n(a.lane)-v77n(b.lane));
+    saveToGlobalChart();
+  }
+  v77LiveHeld[lane]=null;
+  v77refresh();
+}
+function v77startSession(){
+  v77LiveEvents=[];v77LiveHeld=[null,null,null,null];v77LiveFixed=0;v77LiveHoldCount=0;v77LiveChordCount=0;v77LastChordKey='';v77LiveLastLane=-1;
+  v77set('REC READY • 00:00.000 • 録画中リアルタイム補正ON');
+  v77refresh();
+  if(v77SaveTimer)clearInterval(v77SaveTimer);
+  /* Autosave does not alter the chart; it only persists currentNotes. */
+  v77SaveTimer=setInterval(()=>{if(activeScreen==='editor'&&isRecording&&!isRecordingPaused)saveToGlobalChart();},3000);
+}
+function v77endSession(){
+  if(v77SaveTimer){clearInterval(v77SaveTimer);v77SaveTimer=null;}
+  v77set('REC STOP • '+v77LiveEvents.length+' EVENTS • 録画中に補正済み');
+  v77refresh();
+}
+function v77toggleLive(){
+  v77LiveEnabled=!v77LiveEnabled;
+  const b=document.getElementById('v77-live-toggle');
+  if(b)b.textContent='LIVE CORRECT: '+(v77LiveEnabled?'ON':'OFF');
+  v77set(v77LiveEnabled?'LIVE CORRECT ON • 録画中に即時補正':'LIVE CORRECT OFF • REC自体は継続');
+  v77refresh();
+}
+function v77toggleSnap(){
+  v77LiveSnap=!v77LiveSnap;
+  const b=document.getElementById('v77-live-snap');
+  if(b)b.textContent='LIVE SNAP: '+(v77LiveSnap?'ON':'OFF');
+  v77set('LIVE SNAP '+(v77LiveSnap?'ON':'OFF')+' • '+(v77n(gridSnapSec)>0?('GRID '+v77n(gridSnapSec).toFixed(2)+'s'):'FREE'));
+}
+function v77toggleChord(){
+  v77LiveChord=!v77LiveChord;
+  const b=document.getElementById('v77-live-chord');
+  if(b)b.textContent='CHORD LIVE: '+(v77LiveChord?'ON':'OFF');
+  v77set('CHORD LIVE '+(v77LiveChord?'ON':'OFF'));
+}
+function v77toggleHold(){
+  v77LiveHold=!v77LiveHold;
+  const b=document.getElementById('v77-live-hold');
+  if(b)b.textContent='HOLD LIVE: '+(v77LiveHold?'ON':'OFF');
+  v77set('HOLD LIVE '+(v77LiveHold?'ON':'OFF')+' • MIN '+v77HoldThreshold.toFixed(2)+'s');
+}
+function v77reset(){
+  v77LiveEvents=[];v77LiveHeld=[null,null,null,null];v77LiveFixed=0;v77LiveHoldCount=0;v77LiveChordCount=0;v77LastChordKey='';
+  v77set('LIVE SESSION RESET • 譜面データは削除していません');v77refresh();
+}
+function v77addUI(){
+  const editor=document.getElementById('editor-screen');
+  const side=editor&&editor.querySelector('.editor-side');
+  if(!side||document.getElementById('v77-live-recorder'))return;
+  const p=document.createElement('div');p.id='v77-live-recorder';
+  p.innerHTML='<div id="v77-live-head"><div id="v77-live-head-title">⚡ LIVE REC CORRECT</div><div id="v77-live-dot"></div></div>'+
+  '<div id="v77-live-status">READY • 録画中リアルタイム補正</div>'+
+  '<div id="v77-live-grid">'+
+    '<button class="editor-btn" id="v77-live-toggle">LIVE CORRECT: ON</button>'+ 
+    '<button class="editor-btn" id="v77-live-snap">LIVE SNAP: ON</button>'+ 
+    '<button class="editor-btn" id="v77-live-chord">CHORD LIVE: ON</button>'+ 
+    '<button class="editor-btn" id="v77-live-hold">HOLD LIVE: ON</button>'+ 
+    '<button class="editor-btn" id="v77-live-reset">↺ RESET LIVE</button>'+ 
+    '<button class="editor-btn" id="v77-live-save">💾 SAVE NOW</button>'+ 
+  '</div>'+ 
+  '<div id="v77-live-options">'+
+    '<label class="v77-live-opt"><span>CHORD WIN</span><input id="v77-chord-win" type="number" min="0.02" max="0.20" step="0.01" value="0.07"></label>'+ 
+    '<label class="v77-live-opt"><span>HOLD MIN</span><input id="v77-hold-min" type="number" min="0.05" max="1.50" step="0.01" value="0.12"></label>'+ 
+  '</div>'+ 
+  '<div id="v77-live-stats">'+
+    '<div class="v77-live-stat">EVENTS<b id="v77-live-events">0</b></div>'+ 
+    '<div class="v77-live-stat">HOLDS<b id="v77-live-holds">0</b></div>'+ 
+    '<div class="v77-live-stat">CHORDS<b id="v77-live-chords">0</b></div>'+ 
+    '<div class="v77-live-stat">FIXED<b id="v77-live-fixed">0</b></div>'+ 
+  '</div>'+ 
+  '<div id="v77-live-tip">REC中：押した瞬間にスナップ＆同時押し補正。離した瞬間に長押しを確定。3秒ごとの自動保存もON。</div>';
+  side.appendChild(p);
+  document.getElementById('v77-live-toggle').onclick=v77toggleLive;
+  document.getElementById('v77-live-snap').onclick=v77toggleSnap;
+  document.getElementById('v77-live-chord').onclick=v77toggleChord;
+  document.getElementById('v77-live-hold').onclick=v77toggleHold;
+  document.getElementById('v77-live-reset').onclick=v77reset;
+  document.getElementById('v77-live-save').onclick=()=>{saveToGlobalChart();v77set('SAVED • '+(currentNotes||[]).length+' NOTES');};
+  document.getElementById('v77-chord-win').onchange=e=>{v77ChordWindow=Math.max(.02,Math.min(.2,v77n(e.target.value,.07)));v77set('CHORD WINDOW '+v77ChordWindow.toFixed(2)+'s');};
+  document.getElementById('v77-hold-min').onchange=e=>{v77HoldThreshold=Math.max(.05,Math.min(1.5,v77n(e.target.value,.12)));v77set('HOLD MIN '+v77HoldThreshold.toFixed(2)+'s');};
+  v77refresh();
+}
+
+/* Capture-phase observer: the original recorder still performs the actual note creation. */
+window.addEventListener('keydown',v77keydown,true);
+window.addEventListener('keyup',v77keyup,true);
+
+/* Preserve previous REC wrapper and extend it. */
+const V77_PREV_TOGGLE=toggleRecAction;
+toggleRecAction=function(){
+  const was=!!isRecording;
+  if(!was)v77startSession();
+  V77_PREV_TOGGLE();
+  if(was&&!isRecording)v77endSession();
+};
+const V77_PREV_STOP=stopRecording;
+stopRecording=function(){V77_PREV_STOP();v77endSession();};
+const V77_PREV_START_EDITOR=startEditor;
+startEditor=function(){V77_PREV_START_EDITOR();setTimeout(v77addUI,0);};
+const V77_PREV_CHANGE_SCREEN=changeScreen;
+changeScreen=function(name){V77_PREV_CHANGE_SCREEN(name);if(name==='editor')setTimeout(v77addUI,0);};
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v77addUI,160));
+setTimeout(()=>{if(document.readyState!=='loading')v77addUI();},320);
 })();
 </script>
