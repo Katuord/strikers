@@ -704,6 +704,10 @@
         if (Array.isArray(window.songList5)) window.songList.push(...window.songList5);
     </script>
 
+    <!-- v8.1 INTEGRATED CORE: existing enhancements are retained in-place. -->
+    <script>
+        window.__strikersIntegratedVersion = 'v8.1-4423base';
+    </script>
     <script>
         let gridSnapSec = 0.05;
         let pxPerSec = 400; 
@@ -1630,8 +1634,12 @@
 
         function startEditor() {
             initAudio(); 
-            currentNotes = safeLoadChart(); 
+            /* Integrated editor state: always edit a deep clone so UI editing
+               cannot mutate the source chart by shared reference. */
+            currentNotes = JSON.parse(JSON.stringify(safeLoadChart() || []));
+            currentNotes.sort((a,b) => (Number(a.time)||0) - (Number(b.time)||0));
             editorScrollSec = 0; 
+            if (typeof pxPerSec === 'number' && (!Number.isFinite(pxPerSec) || pxPerSec < 70 || pxPerSec > 600)) pxPerSec = 180;
             changeScreen('editor'); 
             if(scWidget) { 
                 scWidget.setVolume(masterVolume);
@@ -1738,6 +1746,10 @@
 
         eCanvas.addEventListener('click', (e) => {
             if (activeScreen !== 'editor') return;
+            /* The integrated pointer editor owns clicks when bound.
+               Keep this original handler intact as a fallback, but do not
+               let it toggle the same tap immediately after placement. */
+            if (eCanvas.dataset && eCanvas.dataset.v74Bound === '1') return;
             const rect = eCanvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
@@ -1785,6 +1797,14 @@
 
         function toggleRecAction() {
             if (!isRecording) {
+                /* REC START begins from 0.000s, without deleting any existing chart. */
+                isRecordingPaused = false;
+                editorScrollSec = 0;
+                trackCurrentTime = 0;
+                if (scWidget) {
+                    try { scWidget.seekTo(0); } catch(e) {}
+                }
+                isTrackPlaying = false;
                 isRecording = true;
                 document.getElementById('recordBtn').classList.add('recording');
                 document.getElementById('recordBtn').innerText = "⏹ REC STOP";
@@ -1827,6 +1847,12 @@
         }
 
         function tryTestPlay() {
+            /* Integrated Test Play handoff: save the exact current editor chart
+               and viewport first, then use the existing gameplay flow. */
+            if (typeof editorReturnState !== 'undefined') {
+                editorReturnState.scrollSec = Math.max(0, Number(editorScrollSec) || 0);
+                editorReturnState.zoom = Math.max(70, Math.min(600, Number(pxPerSec) || 180));
+            }
             saveToGlobalChart();
             testPlayMode = true;
             startGame();
@@ -2003,7 +2029,7 @@
         });
 
 /* ================================================================
-   STRIKERS!! v7 ULTIMATE STABILITY PATCH
+   STRIKERS!! v8.1 INTEGRATED STABILITY
    - Rainbow changes to the next hue every exactly 1.0 second.
    - Test Play returns safely to the editor and restarts its renderer.
    - Editor default zoom is reduced and stays visually stable.
@@ -2816,7 +2842,7 @@
 </script>
 
 
-<!-- v7.3 Rainbow Whole-Screen + FX additive patch -->
+<!-- v7.3 Rainbow Whole-Screen + FX integrated module -->
 <style>
 /* v7.3: Rainbow itself is a SOLID full-screen tint. No gradient flow. */
 #rainbow-overlay{
@@ -3458,7 +3484,7 @@ setTimeout(()=>{if(document.readyState!=='loading')v76AddPanel();},250);
      ADDITIVE ONLY: all existing functions/data remain in place.
      ================================================================ -->
 <style>
-/* ===== v7.9 editor clarity ===== */
+/* ===== v7.9 editor clarity integrated module ===== */
 #editor-screen.v79-editor-clear{
   gap:20px!important;padding:16px!important;align-items:stretch!important;
   background:#01020a!important;
@@ -4070,7 +4096,7 @@ setTimeout(()=>{if(document.readyState!=='loading') {v74EnsureUI();updateZoom();
 </script>
 
 <!-- ================================================================
-     STRIKERS!! v7.7 LIVE RECORDER CORRECTION PATCH
+     STRIKERS!! v7.7 LIVE RECORDER CORRECTION INTEGRATED MODULE
      Additive/non-destructive: existing functions and data stay intact.
      Correction happens DURING recording, not only after STOP.
      ================================================================ -->
@@ -4344,7 +4370,7 @@ setTimeout(()=>{if(document.readyState!=='loading')v77addUI();},320);
 </script>
 
 
-<!-- v7.8 RAINBOW CONTINUOUS 0.75s COLOR TRANSITION - additive only -->
+<!-- v7.8 RAINBOW CONTINUOUS 0.75s COLOR TRANSITION - integrated module -->
 <style>
 /* One full-screen, uniform color. No gradient, no directional flow, no step-jumps. */
 #rainbow-overlay.v78-rainbow-uniform{
