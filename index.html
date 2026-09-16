@@ -181,6 +181,9 @@
 
         #editor-screen { flex-direction: row; background: var(--bg-base); }
         .editor-side { width: 340px; height: 100%; background: rgba(5,6,15,0.92); border-right: 1px solid var(--border-line); padding: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 5; backdrop-filter: blur(10px); }
+        .editor-side .editor-controls-group { padding: 13px 15px; }
+        .editor-side .editor-btn { min-height: 36px; }
+        .editor-side .v77-live-opt input { min-width: 70px; }
         .editor-main { flex: 1; height: 100%; background: rgba(2,3,8,0.85); position: relative; }
         #editorCanvas { width: 100%; height: 100%; cursor: pointer; }
 
@@ -188,6 +191,18 @@
         .editor-main { min-width: 0; overflow: hidden; }
         #editorCanvas { touch-action: none; image-rendering: auto; }
         #zoomSlider { accent-color: var(--accent-neon); }
+
+        .selected-song-meta { margin-top: 10px; color: #6f7598; font-family: 'Share Tech Mono', monospace; font-size: 11px; line-height: 1.5; letter-spacing: .5px; }
+        .play-song-hud { position:absolute; top:106px; left:50%; transform:translateX(-50%); width:min(420px,76vw); text-align:center; z-index:6; pointer-events:none; }
+        .play-song-title { color:#fff; font-family:'Press Start 2P',monospace; font-size:12px; letter-spacing:1px; text-shadow:0 0 10px var(--accent-neon); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .play-song-sub { margin-top:6px; color:var(--text-sub); font:11px 'Share Tech Mono',monospace; letter-spacing:1px; }
+        .play-progress-track { margin:8px auto 0; width:100%; height:3px; background:rgba(255,255,255,.12); border-radius:3px; overflow:hidden; box-shadow:0 0 8px rgba(0,240,255,.08); }
+        .play-progress-fill { width:0%; height:100%; background:linear-gradient(90deg,var(--accent-neon),var(--accent-pink)); transform-origin:left center; }
+        .play-speed-chip { position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:6; pointer-events:none; color:var(--accent-neon); border:1px solid rgba(0,240,255,.35); background:rgba(2,3,10,.58); padding:5px 9px; border-radius:4px; font:9px 'Press Start 2P'; backdrop-filter:blur(6px); }
+        .io-action-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        #chart-io-modal .modal-box { max-width:760px; }
+        #io-textarea { min-height:260px !important; font-family:'Share Tech Mono',monospace !important; line-height:1.45; }
+        @media (max-width: 760px) { .play-song-hud { top:92px; } .play-speed-chip { top:68px; } .io-action-grid { grid-template-columns:1fr 1fr; } }
 
         .modal-base { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(2, 3, 10, 0.88); display: none; justify-content: center; align-items: center; z-index: 999; opacity: 0; transition: opacity 0.25s; backdrop-filter: blur(8px); }
         .modal-base.show { display: flex; opacity: 1; }
@@ -245,9 +260,9 @@
         @keyframes glitchOverlayAnim {
             0% { opacity: 0.8; transform: translate(0, 0) scale(1); filter: hue-rotate(0deg); }
             20% { transform: translate(-10px, 8px) scale(1.05); }
-            40% { transform: translate(12px, -6px) filter: hue-rotate(90deg); }
+            40% { transform: translate(12px, -6px); filter: hue-rotate(90deg); }
             60% { transform: translate(-8px, -8px) scale(0.98); }
-            80% { transform: translate(6px, 10px) filter: hue-rotate(180deg); }
+            80% { transform: translate(6px, 10px); filter: hue-rotate(180deg); }
             100% { opacity: 0; transform: translate(0, 0) scale(1); }
         }
 
@@ -346,6 +361,7 @@
             <div class="song-info-box">
                 <h2 id="selectedTitle">Analyzing...</h2>
                 <p id="selectedArtist">Standby</p>
+                <div id="selectedSongMeta" class="selected-song-meta">LEVEL • -- &nbsp;|&nbsp; NOTES • -- &nbsp;|&nbsp; HOLD • --<br>DURATION • --:--</div>
             </div>
             
             <div class="diff-selector">
@@ -386,6 +402,12 @@
                     <div class="groove-gauge-container"><div class="groove-gauge-fill" id="grooveFill"></div></div>
                 </div>
             </div>
+            <div id="play-song-hud" class="play-song-hud">
+                <div class="play-song-title" id="playSongTitle">ANALYZING...</div>
+                <div class="play-song-sub" id="playSongSub">NORMAL • SPEED 3.0x • NOTES 0</div>
+                <div class="play-progress-track"><div id="playProgressFill" class="play-progress-fill"></div></div>
+            </div>
+            <div id="play-speed-chip" class="play-speed-chip">SPD 3.0x</div>
             <div class="judge-m" id="judgeId">PERFECT<span class="judge-sub" id="judgeSubId"></span></div>
         </div>
     </div>
@@ -510,9 +532,12 @@
         <div class="modal-box">
             <div class="modal-title" id="ioModalTitle">DATA IO</div>
             <textarea id="io-textarea" style="width: 100%; height: 180px; background:#02030a; border: 1px solid rgba(255,255,255,0.2); color:#fff; font-family: monospace; font-size:12px; padding:10px; border-radius:4px; resize:none;"></textarea>
-            <div style="display:flex; gap:12px;">
-                <button id="io-action-btn" class="action-btn" style="flex:1; background: #fff; color: #000; height: 40px;" onclick="executeIoAction()">COPY</button>
-                <button class="action-btn" style="flex:1; background: transparent; border: 1px solid #fff; color: #fff; height: 40px;" onclick="closeIoModal()">CLOSE</button>
+            <div class="io-action-grid">
+                <button id="io-action-btn" class="action-btn" style="background: #fff; color: #000; height: 42px;" onclick="executeIoAction()">COPY</button>
+                <button id="io-download-btn" class="action-btn" style="height: 42px;" onclick="downloadChartFile()">DOWNLOAD</button>
+                <button id="io-select-btn" class="action-btn" style="height: 42px;" onclick="selectIoText()">SELECT ALL</button>
+                <button id="io-format-btn" class="action-btn" style="height: 42px;" onclick="toggleExportFormat()">COMPACT</button>
+                <button class="action-btn" style="height: 42px;" onclick="closeIoModal()">CLOSE</button>
             </div>
         </div>
     </div>
@@ -1121,6 +1146,37 @@
             else { box.classList.remove('active'); status.innerText = "OFF"; status.style.color = "var(--text-sub)"; }
         }
 
+        function formatSeconds(totalSeconds) {
+            const s = Math.max(0, Number(totalSeconds)||0);
+            const m = Math.floor(s/60);
+            const sec = Math.floor(s%60);
+            return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+        }
+        function getSongChartStats(song, diff = currentDiff) {
+            const chart = (song && song.charts && Array.isArray(song.charts[diff])) ? song.charts[diff] : [];
+            return { notes: chart.length, holds: chart.filter(n => n && n.isLong).length };
+        }
+        function updateSelectedSongMeta(durationSec = null) {
+            const meta = document.getElementById('selectedSongMeta');
+            if (!meta || !currentSong) return;
+            const stats = getSongChartStats(currentSong, currentDiff);
+            const level = currentSong.levels && currentSong.levels[currentDiff] ? currentSong.levels[currentDiff] : 'Lv.?';
+            const duration = durationSec != null ? formatSeconds(durationSec) : '--:--';
+            meta.innerHTML = `LEVEL • ${level} &nbsp;|&nbsp; NOTES • ${stats.notes} &nbsp;|&nbsp; HOLD • ${stats.holds}<br>DURATION • ${duration}`;
+        }
+        function updatePlaySongHud() {
+            const title = document.getElementById('playSongTitle');
+            const sub = document.getElementById('playSongSub');
+            const speed = document.getElementById('playSpeedChip');
+            const fill = document.getElementById('playProgressFill');
+            if (title) title.innerText = currentSong ? currentSong.title : 'ANALYZING...';
+            const stats = getSongChartStats(currentSong, currentDiff);
+            if (sub) sub.innerText = `${String(currentDiff).toUpperCase()} • SPEED ${(Number(systemNoteSpeed)||3).toFixed(1)}x • NOTES ${stats.notes}`;
+            if (speed) speed.innerText = `SPD ${(Number(systemNoteSpeed)||3).toFixed(1)}x`;
+            const duration = Number(window.__strikersTrackDuration)||0;
+            if (fill) fill.style.width = duration > 0 ? `${Math.max(0,Math.min(100,(trackCurrentTime/duration)*100))}%` : '0%';
+        }
+
         function buildSongList() {
             const container = document.getElementById('songListId');
             if(!container) return;
@@ -1149,6 +1205,8 @@
             if(currentSong) {
                 document.getElementById('selectedTitle').innerText = currentSong.title;
                 document.getElementById('selectedArtist').innerText = currentSong.artist;
+                updateSelectedSongMeta();
+                updatePlaySongHud();
             }
         }
 
@@ -1191,6 +1249,11 @@
             const jacket = document.getElementById('ui-jacket');
             if(!jacket) return;
             jacket.style.opacity = '1';
+            if (sound && Number.isFinite(sound.duration)) {
+                window.__strikersTrackDuration = Number(sound.duration) / 1000;
+                updateSelectedSongMeta(window.__strikersTrackDuration);
+                updatePlaySongHud();
+            }
             if(sound && sound.artwork_url) {
                 let highResUrl = sound.artwork_url.replace('-large', '-t500x500');
                 jacket.style.backgroundImage = `url('${highResUrl}')`;
@@ -1263,6 +1326,7 @@
             changeScreen('game');
             resizeGameCanvas();
             updateHUD();
+            updatePlaySongHud();
 
             if(scWidget) { 
                 scWidget.setVolume(masterVolume);
@@ -1442,8 +1506,11 @@
             }
         }
 
+        let lastPlayHudUpdate = 0;
         function renderGame() {
             const rect = { width: gCanvas.clientWidth, height: gCanvas.clientHeight };
+            const hudNow = performance.now();
+            if (hudNow - lastPlayHudUpdate > 100) { lastPlayHudUpdate = hudNow; updatePlaySongHud(); }
             const judgeY = getJudgeY();
             drawBackground(rect);
             gCtx.clearRect(0, 0, rect.width, rect.height);
@@ -1639,12 +1706,20 @@
             else grooveEl.classList.remove('groove-overheat');
         }
 
+        let trackPositionLastRequest = 0;
+        function shouldPollTrackPosition(intervalMs = 33) {
+            const now = performance.now();
+            if ((now - trackPositionLastRequest) < intervalMs) return false;
+            trackPositionLastRequest = now;
+            return true;
+        }
+
         function engineLoop(timestamp) {
             if (activeScreen !== 'game') return;
             let delta = (timestamp - lastFrameTimestamp) / 1000;
             lastFrameTimestamp = timestamp;
 
-            if (!isGamePaused && isTrackPlaying && scWidget) {
+            if (!isGamePaused && isTrackPlaying && scWidget && shouldPollTrackPosition()) {
                 scWidget.getPosition((pos) => {
                     trackCurrentTime = pos / 1000;
                 });
@@ -1678,7 +1753,7 @@
         function renderEditorLoop() {
             if (activeScreen !== 'editor') return;
             
-            if (isTrackPlaying && scWidget) {
+            if (isTrackPlaying && scWidget && shouldPollTrackPosition()) {
                 scWidget.getPosition((pos) => {
                     editorScrollSec = pos / 1000;
                 });
@@ -1686,6 +1761,35 @@
 
             renderEditor();
             requestAnimationFrame(renderEditorLoop);
+        }
+
+        function drawEditorNoteSkin(x, y, w, h, lane, isLongBody = false) {
+            const skin = userProfile.noteSkin || 'classic';
+            const c = glowColors[lane] || '#fff';
+            eCtx.save();
+            if (skin === 'round') {
+                eCtx.fillStyle = isLongBody ? c + '88' : c;
+                eCtx.beginPath();
+                eCtx.roundRect(x, y, w, Math.max(4, h), Math.min(w, Math.max(4,h))/2);
+                eCtx.fill();
+            } else if (skin === 'glow') {
+                eCtx.shadowBlur = isLongBody ? 10 : 16; eCtx.shadowColor = c;
+                eCtx.fillStyle = isLongBody ? c + '88' : c;
+                eCtx.fillRect(x, y, w, h);
+            } else if (skin === 'diamond' && !isLongBody) {
+                eCtx.fillStyle = c;
+                eCtx.beginPath();
+                eCtx.moveTo(x + w/2, y); eCtx.lineTo(x + w, y + h/2);
+                eCtx.lineTo(x + w/2, y + h); eCtx.lineTo(x, y + h/2); eCtx.closePath(); eCtx.fill();
+            } else {
+                eCtx.fillStyle = isLongBody ? c + '88' : c;
+                eCtx.fillRect(x, y, w, Math.max(4, h));
+                if (!isLongBody) {
+                    eCtx.fillStyle = '#000';
+                    eCtx.fillRect(x + Math.min(8,w*.12), y + Math.min(5,Math.max(1,h*.22)), Math.max(2,w - Math.min(16,w*.24)), Math.min(4,Math.max(1,h*.25)));
+                }
+            }
+            eCtx.restore();
         }
 
         function renderEditor() {
@@ -1748,16 +1852,14 @@
 
                 if (note.isLong && note.endTime !== undefined) {
                     let endY = timelineY - (note.endTime - editorScrollSec) * pxPerSec;
-                    eCtx.fillStyle = glowColors[note.lane] + '66';
-                    eCtx.fillRect(x + 10, endY, laneW - 20, noteY - endY);
+                    drawEditorNoteSkin(x + 12, endY, laneW - 24, noteY - endY, note.lane, true);
                 }
 
                 if (noteY >= -20 && noteY <= rect.height + 20) {
-                    eCtx.fillStyle = glowColors[note.lane];
-                    eCtx.fillRect(x + 6, noteY - 6, laneW - 12, 12);
+                    drawEditorNoteSkin(x + 4, noteY - 8, laneW - 8, 16, note.lane, false);
                     eCtx.strokeStyle = '#fff';
                     eCtx.lineWidth = 1;
-                    eCtx.strokeRect(x + 6, noteY - 6, laneW - 12, 12);
+                    eCtx.strokeRect(x + 4, noteY - 8, laneW - 8, 16);
 
                     if (note.effect && note.effect !== 'none') {
                         eCtx.fillStyle = '#fff';
@@ -1890,11 +1992,16 @@
         }
 
         let ioMode = "export";
+        let ioCompactMode = false;
         function openExportModal() {
             ioMode = "export";
+            ioCompactMode = false;
             document.getElementById('ioModalTitle').innerText = "EXPORT CHART";
             document.getElementById('io-textarea').value = JSON.stringify(currentNotes, null, 2);
             document.getElementById('io-action-btn').innerText = "COPY";
+            const fmt = document.getElementById('io-format-btn'); if (fmt) fmt.innerText = "COMPACT";
+            document.getElementById('io-download-btn').style.display = 'block';
+            document.getElementById('io-select-btn').style.display = 'block';
             document.getElementById('chart-io-modal').classList.add('show');
         }
 
@@ -1903,6 +2010,9 @@
             document.getElementById('ioModalTitle').innerText = "IMPORT CHART";
             document.getElementById('io-textarea').value = "";
             document.getElementById('io-action-btn').innerText = "LOAD";
+            document.getElementById('io-download-btn').style.display = 'none';
+            document.getElementById('io-select-btn').style.display = 'none';
+            document.getElementById('io-format-btn').style.display = 'none';
             document.getElementById('chart-io-modal').classList.add('show');
         }
 
@@ -1910,19 +2020,48 @@
             document.getElementById('chart-io-modal').classList.remove('show');
         }
 
-        function executeIoAction() {
+        async function copyIoText() {
+            const txt = document.getElementById('io-textarea');
+            const value = txt.value;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(value); }
+                else { txt.focus(); txt.select(); document.execCommand('copy'); }
+                return true;
+            } catch(e) { try { txt.focus(); txt.select(); document.execCommand('copy'); return true; } catch(err) { return false; } }
+        }
+        function selectIoText() {
+            const txt = document.getElementById('io-textarea');
+            txt.focus(); txt.select();
+        }
+        function toggleExportFormat() {
+            if (ioMode !== 'export') return;
+            ioCompactMode = !ioCompactMode;
+            document.getElementById('io-textarea').value = JSON.stringify(currentNotes, null, ioCompactMode ? 0 : 2);
+            const fmt = document.getElementById('io-format-btn'); if (fmt) fmt.innerText = ioCompactMode ? 'PRETTY' : 'COMPACT';
+        }
+        function downloadChartFile() {
+            if (ioMode !== 'export') return;
+            const blob = new Blob([document.getElementById('io-textarea').value], {type:'application/json;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const songId = currentSong && currentSong.id ? currentSong.id : 'chart';
+            a.href = url; a.download = `Strikers_${songId}_${currentDiff}.json`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 500);
+        }
+        async function executeIoAction() {
             if (ioMode === "export") {
-                const txt = document.getElementById('io-textarea');
-                txt.select();
-                navigator.clipboard.writeText(txt.value);
-                alert("クリップボードにコピーしました！");
+                const ok = await copyIoText();
+                alert(ok ? "クリップボードにコピーしました！" : "コピーできませんでした。SELECT ALLから手動でコピーしてください。");
             } else {
                 try {
                     const data = JSON.parse(document.getElementById('io-textarea').value);
                     if (Array.isArray(data)) {
-                        currentNotes = data;
+                        currentNotes = data.map(n => ({...n}));
+                        currentNotes.sort((a,b) => (Number(a.time)||0) - (Number(b.time)||0));
                         saveToGlobalChart();
                         closeIoModal();
+                        renderEditor();
                         alert("譜面データを読み込みました！");
                     } else {
                         alert("不正なデータフォーマットです。");
@@ -1957,6 +2096,8 @@
             applyTheme(userProfile.theme);
             saveProfileToLocal();
             applyProfileUI();
+            updatePlaySongHud();
+            if (activeScreen === 'editor') renderEditor();
             document.getElementById('settings-modal').classList.remove('show');
         }
 
