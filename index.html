@@ -1916,8 +1916,13 @@
                 scWidget.pause();
                 isTrackPlaying = false;
             } else {
+                /* Preserve the editor's current scroll position when starting playback. */
+                const editorStartSec = Math.max(0, Number(editorScrollSec) || 0);
+                try { scWidget.seekTo(editorStartSec * 1000); } catch(e) {}
+                trackCurrentTime = editorStartSec;
                 scWidget.play();
                 isTrackPlaying = true;
+                lastFrameTimestamp = performance.now();
             }
         }
 
