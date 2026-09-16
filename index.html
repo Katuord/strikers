@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Strikers!! // CYBER CORE OVERLOAD v7.0</title>
+    <title>Strikers!! // CYBER CORE OVERLOAD v8.2</title>
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&family=Share+Tech+Mono&display=swap');
@@ -276,7 +276,12 @@
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; background: var(--accent-neon); cursor: pointer; margin-top: -6px; border-radius: 2px; box-shadow: 0 0 8px var(--accent-neon); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #222; border-radius: 2px; }
-    </style>
+    
+/* v8.2 integrated editor/recorder UX */
+.v80-selected-multi{filter:brightness(1.28)}
+#v80-rec-panel button{font-size:8px;min-height:28px}
+#v80-rec-state{color:#00ff88}
+</style>
 </head>
 <body>
 
@@ -326,7 +331,7 @@
     <div id="title-screen" class="screen active">
         <div class="title-container">
             <div class="main-title glitch-text" data-text="Strikers!!">Strikers!!</div>
-            <div style="color: var(--accent-neon); font-size: 10px; font-family: 'Press Start 2P', monospace; margin-top: 20px; opacity: 0.8; text-align: center; letter-spacing: 2px;">CYBER ENGINE v7.0 OVERLOAD</div>
+            <div style="color: var(--accent-neon); font-size: 10px; font-family: 'Press Start 2P', monospace; margin-top: 20px; opacity: 0.8; text-align: center; letter-spacing: 2px;">CYBER ENGINE v8.2 OVERLOAD</div>
             <div style="display:flex; justify-content:center; margin-top: 40px;">
                 <button class="press-start action-btn" onclick="changeScreen('select')">LINK START</button>
             </div>
@@ -419,6 +424,14 @@
                 <div style="display:flex; gap:8px; margin-top: 4px;">
                     <button class="editor-btn" id="recordBtn" style="flex:1;" onclick="toggleRecAction()">🔴 REC START</button>
                     <button class="editor-btn" id="recordPauseBtn" style="flex:1; display:none;" onclick="pauseResumeRecording()">⏸ PAUSE</button>
+                <div id="v80-rec-panel" style="margin-top:8px; padding:8px; border:1px solid rgba(0,255,136,.18); border-radius:4px; background:rgba(0,255,136,.025);">
+                    <div style="display:flex; justify-content:space-between; font:9px 'Press Start 2P'; color:#00ff88;"><span>REC TAKE</span><span id="v80-rec-state">READY</span></div>
+                    <div id="v80-rec-stats" style="margin-top:6px; font:10px 'Share Tech Mono'; color:#ccc;">TAKE 0 • 0 EVENTS • HOLD 0 • CHORD 0</div>
+                    <div style="display:flex; gap:6px; margin-top:6px;">
+                        <button class="editor-btn" id="v80-rec-save" style="flex:1;">SAVE TAKE</button>
+                        <button class="editor-btn" id="v80-rec-reset" style="flex:1;">RESET TAKE</button>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -467,6 +480,17 @@
 
                 <button class="editor-btn" onclick="tryTestPlay()" style="border-color: #00ff88; color: #00ff88; margin-top: 4px;">🎮 TEST PLAY</button>
                 <button class="editor-btn" onclick="clearCurrentChart()" style="color: var(--accent-pink); border-color: var(--accent-pink);">🗑 CLEAR ALL</button>
+                <button class="editor-btn" id="v80-copy-btn">COPY SELECTED</button>
+                <button class="editor-btn" id="v80-paste-btn">PASTE SELECTED</button>
+                <button class="editor-btn" id="v80-quant-btn">QUANTIZE SELECTED</button>
+                <div style="display:flex; gap:6px;">
+                    <button class="editor-btn" id="v80-nudge-left" style="flex:1;">◀ 0.01s</button>
+                    <button class="editor-btn" id="v80-nudge-right" style="flex:1;">0.01s ▶</button>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="editor-btn" id="v80-flip-lanes" style="flex:1;">FLIP LANES</button>
+                    <button class="editor-btn" id="v80-undo-take" style="flex:1; border-color:var(--accent-pink); color:var(--accent-pink);">UNDO TAKE</button>
+                </div>
             </div>
             
             <div class="editor-controls-group" style="margin-top: auto;">
@@ -3477,6 +3501,197 @@ setTimeout(()=>{if(document.readyState!=='loading')v76AddPanel();},250);
 })();
 </script>
 
+\n<script>
+/* ================================================================
+   STRIKERS!! v8.2 EDITOR + RECORDER CORE
+   Integrated into the main document; existing systems remain active.
+   ================================================================ */
+(function(){
+'use strict';
+
+/* ---------- Multi-selection / editing state ---------- */
+let v80Selection=new Set();
+let v80Clipboard=[];
+let v80TakeBaseline=null;
+let v80TakeNumber=0;
+let v80LastTake=null;
+let v80TakeSaved=false;
+
+function v80Num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
+function v80Clone(a){return JSON.parse(JSON.stringify(a||[]));}
+function v80Sort(){currentNotes.sort((a,b)=>v80Num(a.time)-v80Num(b.time)||v80Num(a.lane)-v80Num(b.lane));}
+function v80Snap(t){const g=v80Num(gridSnapSec,.05);return g>0?Number((Math.round(v80Num(t)/g)*g).toFixed(3)):Number(v80Num(t).toFixed(3));}
+function v80SelectedNotes(){return [...v80Selection].map(i=>currentNotes[i]).filter(Boolean);}
+function v80ClearSelection(){v80Selection.clear();v74Selected=-1;if(typeof v74UpdateHud==='function')v74UpdateHud();}
+function v80SelectIndex(i,add=false){if(i<0||!currentNotes[i])return;if(!add)v80Selection.clear();v80Selection.add(i);v74Selected=i;if(typeof v74UpdateHud==='function')v74UpdateHud();}
+function v80Save(){v80Sort();saveToGlobalChart();if(typeof v71UpdateInfo==='function')v71UpdateInfo();if(typeof v77refresh==='function')v77refresh();}
+function v80History(label){if(typeof v71PushHistory==='function')v71PushHistory(label);}
+
+function v80Copy(){
+ const notes=v80SelectedNotes();
+ if(!notes.length){if(typeof v74SetStatus==='function')v74SetStatus('COPY • NO SELECTION');return;}
+ v80Clipboard=v80Clone(notes);
+ if(typeof v74SetStatus==='function')v74SetStatus('COPIED • '+notes.length+' NOTES');
+}
+function v80Paste(){
+ if(!v80Clipboard.length){if(typeof v74SetStatus==='function')v74SetStatus('PASTE • CLIPBOARD EMPTY');return;}
+ const minT=Math.min(...v80Clipboard.map(n=>v80Num(n.time)));
+ const anchor=v80Snap(v80Num(editorScrollSec));
+ const delta=anchor-minT;
+ v80History('paste-before');
+ const start=currentNotes.length;
+ v80Clipboard.forEach(src=>{const n=v80Clone([src])[0];n.time=Number((v80Num(src.time)+delta).toFixed(3));if(n.isLong&&n.endTime!==undefined)n.endTime=Number((v80Num(src.endTime)+delta).toFixed(3));currentNotes.push(n);});
+ v80Sort();
+ v80Selection.clear();
+ v80Clipboard.forEach((src,k)=>{
+   const targetTime=Number((v80Num(src.time)+delta).toFixed(3));
+   const idx=currentNotes.findIndex((n,i)=>i>=start&&v80Num(n.time)===targetTime&&v80Num(n.lane)===v80Num(src.lane));
+   if(idx>=0)v80Selection.add(idx);
+ });
+ v80Save();v80History('paste-after');
+ if(typeof v74UpdateHud==='function')v74UpdateHud();
+ if(typeof v74SetStatus==='function')v74SetStatus('PASTED • '+v80Clipboard.length+' NOTES');
+}
+function v80Nudge(dir){
+ const ids=[...v80Selection].filter(i=>currentNotes[i]);
+ if(!ids.length){if(typeof v74SetStatus==='function')v74SetStatus('NUDGE • NO SELECTION');return;}
+ v80History('nudge-before');
+ const step=.01*dir;
+ ids.forEach(i=>{const n=currentNotes[i];const old=v80Num(n.time);const next=Math.max(0,Number((old+step).toFixed(3)));const d=next-old;n.time=next;if(n.isLong&&n.endTime!==undefined)n.endTime=Math.max(next+.05,Number((v80Num(n.endTime)+d).toFixed(3)));});
+ v80Save();v80History('nudge-after');
+}
+function v80Quantize(){
+ const ids=[...v80Selection].filter(i=>currentNotes[i]);
+ if(!ids.length){if(typeof v74SetStatus==='function')v74SetStatus('QUANTIZE • NO SELECTION');return;}
+ v80History('quantize-before');
+ ids.forEach(i=>{const n=currentNotes[i];const old=v80Num(n.time);const next=v80Snap(old);const d=next-old;n.time=next;if(n.isLong&&n.endTime!==undefined)n.endTime=Math.max(next+.05,Number((v80Num(n.endTime)+d).toFixed(3)));});
+ v80Save();v80History('quantize-after');
+ if(typeof v74SetStatus==='function')v74SetStatus('QUANTIZED • '+ids.length+' NOTES');
+}
+function v80Flip(){
+ const ids=[...v80Selection].filter(i=>currentNotes[i]);if(!ids.length){if(typeof v74SetStatus==='function')v74SetStatus('FLIP • NO SELECTION');return;}
+ v80History('flip-before');ids.forEach(i=>currentNotes[i].lane=3-Math.round(v80Num(currentNotes[i].lane)));v80Save();v80History('flip-after');
+ if(typeof v74SetStatus==='function')v74SetStatus('LANES FLIPPED • '+ids.length+' NOTES');
+}
+function v80DeleteSelected(){
+ const ids=[...v80Selection].filter(i=>currentNotes[i]).sort((a,b)=>b-a);if(!ids.length)return;
+ v80History('multi-delete-before');ids.forEach(i=>currentNotes.splice(i,1));v80ClearSelection();v80Save();v80History('multi-delete-after');
+ if(typeof v74SetStatus==='function')v74SetStatus('DELETED • '+ids.length+' NOTES');
+}
+
+/* ---------- Safer click/edit behavior ---------- */
+const V80_PREV_V74_POINTER_DOWN=v74PointerDown;
+v74PointerDown=function(e){
+ if(activeScreen!=='editor'||e.button!==0){return V80_PREV_V74_POINTER_DOWN(e);}
+ const p=v74PointerInfo(e);
+ const idx=v74FindAt(p.x,p.y);
+ /* Ctrl-click is always multi-select; it never deletes. */
+ if(e.ctrlKey){
+   if(idx>=0){if(v80Selection.has(idx))v80Selection.delete(idx);else v80Selection.add(idx);v74Selected=idx;v74UpdateHud();v74SetStatus('MULTI SELECT • '+v80Selection.size+' NOTES');}
+   else v74SetStatus('MULTI SELECT • '+v80Selection.size+' NOTES');
+   e.stopImmediatePropagation();return;
+ }
+ /* Shift-click selects a contiguous time range around the clicked note. */
+ if(e.shiftKey&&!e.altKey&&v74Mode==='select'){
+   if(idx>=0){
+     const anchor=[...v80Selection][0];
+     if(anchor!==undefined&&currentNotes[anchor]){
+       const lo=Math.min(v80Num(currentNotes[anchor].time),v80Num(currentNotes[idx].time));
+       const hi=Math.max(v80Num(currentNotes[anchor].time),v80Num(currentNotes[idx].time));
+       v80Selection.clear();currentNotes.forEach((n,i)=>{if(v80Num(n.time)>=lo&&v80Num(n.time)<=hi)v80Selection.add(i);});
+       v74Selected=idx;v74UpdateHud();v74SetStatus('RANGE SELECT • '+v80Selection.size+' NOTES');
+     }else{v80SelectIndex(idx,false);v74SetStatus('SELECTED • SHIFT AGAIN FOR RANGE');}
+   }
+   e.stopImmediatePropagation();return;
+ }
+ if(v74Mode==='select'&&idx>=0){v80SelectIndex(idx,e.ctrlKey);v74SetStatus('SELECTED #'+(idx+1)+' • '+v80Selection.size+' TOTAL');e.stopImmediatePropagation();return;}
+ return V80_PREV_V74_POINTER_DOWN(e);
+};
+
+/* Renderer decoration: selected multi-notes retain the same play-style skin. */
+const V80_PREV_RENDER_EDITOR=renderEditor;
+renderEditor=function(){
+ V80_PREV_RENDER_EDITOR();
+ if(activeScreen!=='editor')return;
+ /* Selected outlines are drawn on top so they stay clear without changing note graphics. */
+ const rect={width:eCanvas.clientWidth,height:eCanvas.clientHeight};const ctx=eCtx;const w=rect.width,h=rect.height;const laneW=w/4;const jy=v74JudgeY(h);const ep=v74EffectivePx();
+ ctx.save();ctx.lineWidth=2;
+ v80Selection.forEach(idx=>{const n=currentNotes[idx];if(!n)return;const lane=Math.max(0,Math.min(3,Math.round(v80Num(n.lane))));const x=lane*laneW+5;const y=jy-(v80Num(n.time)-editorScrollSec)*ep;if(y<-40||y>h+40)return;ctx.strokeStyle='#fff';ctx.shadowBlur=12;ctx.shadowColor='#fff';ctx.strokeRect(x-2,y-9,laneW-6,18);ctx.shadowBlur=0;});
+ ctx.restore();
+};
+
+/* ---------- Recorder take management ---------- */
+function v80RecState(text){const el=document.getElementById('v80-rec-state');if(el)el.textContent=text;}
+function v80RecStats(){
+ const box=document.getElementById('v80-rec-stats');
+ if(!box)return;
+ const events=Array.isArray(v77LiveEvents)?v77LiveEvents.length:0;
+ const holds=Array.isArray(currentNotes)?currentNotes.filter(n=>n&&n.isLong).length:0;
+ const map=new Map();(currentNotes||[]).forEach(n=>{if(!n)return;const k=v80Num(n.time).toFixed(3);const a=map.get(k)||[];a.push(v80Num(n.lane));map.set(k,a);});
+ const chords=[...map.values()].filter(a=>a.length>1).length;
+ box.textContent='TAKE '+v80TakeNumber+' • '+events+' EVENTS • HOLD '+holds+' • CHORD '+chords;
+}
+function v80RecStart(){
+ v80TakeBaseline=v80Clone(currentNotes);v80TakeNumber++;v80TakeSaved=false;v80LastTake=null;
+ v80RecState('RECORDING');v80RecStats();
+}
+function v80RecStop(){
+ v80LastTake=v80Clone(currentNotes);v80TakeSaved=true;
+ v80RecState('TAKE SAVED');v80RecStats();
+}
+function v80UndoTake(){
+ if(!v80TakeBaseline){if(typeof v74SetStatus==='function')v74SetStatus('UNDO TAKE • NOTHING TO RESTORE');return;}
+ v80History('undo-take-before');currentNotes=v80Clone(v80TakeBaseline);v80ClearSelection();v80Save();v80History('undo-take-after');
+ v80RecState('TAKE UNDONE');v80RecStats();
+ if(typeof v74SetStatus==='function')v74SetStatus('UNDO TAKE • RESTORED '+currentNotes.length+' NOTES');
+}
+function v80ResetTake(){v80UndoTake();v80TakeBaseline=null;v80LastTake=null;v80TakeSaved=false;v80RecState('READY');v80RecStats();}
+function v80SaveTake(){saveToGlobalChart();v80TakeSaved=true;v80RecState('SAVED');v80RecStats();if(typeof v74SetStatus==='function')v74SetStatus('TAKE SAVED • '+currentNotes.length+' NOTES');}
+
+/* Hook existing recorder without removing its logic. */
+const V80_PREV_TOGGLE_REC=toggleRecAction;
+toggleRecAction=function(){
+ const was=!!isRecording;
+ if(!was)v80RecStart();
+ V80_PREV_TOGGLE_REC();
+ if(was&&!isRecording)v80RecStop();
+};
+const V80_PREV_STOP_REC=stopRecording;
+stopRecording=function(){V80_PREV_STOP_REC();v80RecStop();};
+
+/* Keep stats fresh while recording. */
+const V80_PREV_V77REFRESH=(typeof v77refresh==='function')?v77refresh:null;
+if(V80_PREV_V77REFRESH){v77refresh=function(){V80_PREV_V77REFRESH();v80RecStats();};}
+
+/* ---------- Keyboard editor tools ---------- */
+window.addEventListener('keydown',function(e){
+ if(activeScreen!=='editor'||(e.target&&['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)))return;
+ const mod=e.ctrlKey||e.metaKey;
+ if(mod&&e.key.toLowerCase()==='c'){e.preventDefault();v80Copy();return;}
+ if(mod&&e.key.toLowerCase()==='v'){e.preventDefault();v80Paste();return;}
+ if(mod&&e.key.toLowerCase()==='a'){e.preventDefault();v80Selection.clear();currentNotes.forEach((_,i)=>v80Selection.add(i));v74UpdateHud();v74SetStatus('SELECT ALL • '+v80Selection.size+' NOTES');return;}
+ if(e.key==='Delete'||e.key==='Backspace'){if(v80Selection.size){e.preventDefault();v80DeleteSelected();return;}}
+ if(e.key==='ArrowLeft'){if(v80Selection.size){e.preventDefault();v80Nudge(-1);return;}}
+ if(e.key==='ArrowRight'){if(v80Selection.size){e.preventDefault();v80Nudge(1);return;}}
+ if(e.key.toLowerCase()==='q'&&v80Selection.size){e.preventDefault();v80Quantize();return;}
+});
+
+/* ---------- UI wiring ---------- */
+function v80Install(){
+ const bind=(id,fn)=>{const el=document.getElementById(id);if(el&&!el.dataset.v80){el.dataset.v80='1';el.onclick=fn;}};
+ bind('v80-copy-btn',v80Copy);bind('v80-paste-btn',v80Paste);bind('v80-quant-btn',v80Quantize);bind('v80-nudge-left',()=>v80Nudge(-1));bind('v80-nudge-right',()=>v80Nudge(1));bind('v80-flip-lanes',v80Flip);bind('v80-undo-take',v80UndoTake);bind('v80-rec-save',v80SaveTake);bind('v80-rec-reset',v80ResetTake);
+ v80RecStats();
+}
+function v80WrapUI(){try{if(typeof v74EnsureUI==='function')v74EnsureUI();v80Install();}catch(e){}}
+
+const V80_PREV_START_EDITOR=startEditor;
+startEditor=function(){V80_PREV_START_EDITOR();v80Selection.clear();v80TakeBaseline=null;v80LastTake=null;v80TakeSaved=false;v80RecState('READY');v80RecStats();v80WrapUI();};
+const V80_PREV_CHANGE_SCREEN=changeScreen;
+changeScreen=function(name){V80_PREV_CHANGE_SCREEN(name);if(name==='editor')setTimeout(v80WrapUI,0);};
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v80WrapUI,100));
+setTimeout(()=>{if(document.readyState!=='loading')v80WrapUI();},200);
+})();
+</script>
 </body>
 
 <!-- ================================================================
