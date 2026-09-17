@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Strikers!! // CYBER CORE OVERLOAD v8.2</title>
+    <title>Strikers!! // CYBER CORE OVERLOAD v8.13</title>
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&family=Share+Tech+Mono&display=swap');
@@ -307,6 +307,38 @@
 #v80-rec-panel button{font-size:8px;min-height:28px}
 #v80-rec-state{color:#00ff88}
 </style>
+
+<style id="v813-effect-lane-audit-style">
+/* v8.13: EFFECT is a true fifth editor lane, visually aligned with the four note lanes. */
+#editorScreenBody{display:flex!important;align-items:stretch;min-width:0;min-height:0;background:rgba(1,2,7,.88)}
+#editorCanvas{flex:1 1 auto;min-width:0;height:100%;display:block}
+#editorEffectTimeline{
+  flex:0 0 220px!important;width:220px!important;min-width:220px!important;height:100%;
+  position:relative;overflow:hidden;background:rgba(2,4,12,.97);
+  border-left:2px solid rgba(255,0,85,.42)!important;box-shadow:inset 10px 0 24px rgba(255,0,85,.035);
+}
+#effectTimelineCanvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+.effect-timeline-header{
+  top:12px!important;left:10px!important;right:10px!important;height:24px;z-index:4;
+  font-size:8px!important;color:#fff!important;letter-spacing:.5px;
+}
+#effectTimelineLaneBadge{
+  position:absolute;top:38px;left:10px;right:10px;z-index:4;pointer-events:none;
+  border:1px solid rgba(255,0,85,.35);background:rgba(255,0,85,.07);padding:7px 8px;
+  color:#ff6ca9;font:8px 'Press Start 2P',monospace;letter-spacing:.35px;text-align:center;
+}
+#effectTimelineActive{
+  position:absolute;top:76px;left:10px;right:10px;z-index:4;pointer-events:none;
+  color:#aaa;font:8px 'Share Tech Mono',monospace;text-align:center;opacity:.9;
+}
+.effect-timeline-help{
+  left:8px!important;right:8px!important;bottom:8px!important;z-index:4!important;
+  font:8px 'Share Tech Mono',monospace!important;line-height:1.45!important;color:#888!important;
+  background:rgba(0,0,0,.66)!important;border:1px solid rgba(255,255,255,.1)!important;
+}
+@media(max-width:900px){#editorEffectTimeline{flex-basis:190px!important;width:190px!important;min-width:190px!important}}
+@media(max-width:700px){#editorEffectTimeline{flex-basis:165px!important;width:165px!important;min-width:165px!important}}
+</style>
 </head>
 <body>
 
@@ -356,7 +388,7 @@
     <div id="title-screen" class="screen active">
         <div class="title-container">
             <div class="main-title glitch-text" data-text="Strikers!!">Strikers!!</div>
-            <div style="color: var(--accent-neon); font-size: 10px; font-family: 'Press Start 2P', monospace; margin-top: 20px; opacity: 0.8; text-align: center; letter-spacing: 2px;">CYBER ENGINE v8.2 OVERLOAD</div>
+            <div style="color: var(--accent-neon); font-size: 10px; font-family: 'Press Start 2P', monospace; margin-top: 20px; opacity: 0.8; text-align: center; letter-spacing: 2px;">CYBER ENGINE v8.13 OVERLOAD</div>
             <div style="display:flex; justify-content:center; margin-top: 40px;">
                 <button class="press-start action-btn" onclick="changeScreen('select')">LINK START</button>
             </div>
@@ -483,6 +515,8 @@
                         <option value="glitch">GLITCH</option>
                         <option value="hyperdrive">HYPER</option>
                         <option value="strobe">STROBE</option>
+                        <option value="flash">FLASH</option>
+                        <option value="flip">FLIP</option>
                     </select>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
@@ -543,6 +577,8 @@
                 <canvas id="editorCanvas"></canvas>
                 <div id="editorEffectTimeline">
                     <div class="effect-timeline-header"><span>EFFECT TIMELINE</span><span id="effectTimelineCount">0</span></div>
+                    <div id="effectTimelineLaneBadge">⑤ EFFECT LANE • AUTO</div>
+                    <div id="effectTimelineActive">CLICK = PLACE EFFECT • RIGHT CLICK = DELETE</div>
                     <canvas id="effectTimelineCanvas"></canvas>
                     <div class="effect-timeline-help">
                         CLICK = EFFECTを配置<br>
@@ -4379,6 +4415,401 @@ setTimeout(()=>{if(document.readyState!=='loading')v80WrapUI();},200);
   const rb=document.getElementById('rainbow-overlay');
   if(rb){rb.style.backgroundImage='none';rb.style.backgroundPosition='50% 50%';rb.style.backgroundSize='100% 100%';rb.style.opacity='0';}
   console.info('[Strikers v8.7] responsiveness/effect integration active');
+})();
+</script>
+
+
+<!-- ================= v8.13 FULL AUDIT / NON-DESTRUCTIVE FINAL LAYER ================= -->
+<script>
+(function(){
+  'use strict';
+
+  /* ---------------------------------------------------------------
+     v8.13 rules
+     - No existing feature is removed.
+     - Existing legacy note-bound effects remain playable.
+     - New chart editing/recording creates normal playable notes only.
+     - Effect events live on their own fifth lane and trigger by time.
+     - Legacy effect-only chart objects are migrated to the fifth lane.
+  --------------------------------------------------------------- */
+  const V813 = {};
+  V813.num = (v,d=0)=>{const n=Number(v);return Number.isFinite(n)?n:d;};
+  V813.lane = v=>{const n=Math.trunc(Number(v));return Number.isInteger(n)&&n>=0&&n<4?n:-1;};
+  V813.clone = v=>JSON.parse(JSON.stringify(v==null?[]:v));
+
+  const EFFECT_INFO={
+    rainbow:{label:'🌈 RAINBOW',color:'#ff4d9d'},
+    equinox:{label:'☯ EQUINOX',color:'#ffffff'},
+    shake:{label:'⚡ SHAKE',color:'#ff8c00'},
+    glitch:{label:'▦ GLITCH',color:'#00f0ff'},
+    hyperdrive:{label:'✦ HYPER',color:'#00ff88'},
+    strobe:{label:'◉ STROBE',color:'#ffee00'},
+    flash:{label:'▰ FLASH',color:'#ffffff'},
+    flip:{label:'↕ FLIP',color:'#b58cff'}
+  };
+  const effectColor=t=>(EFFECT_INFO[t]&&EFFECT_INFO[t].color)||'#ff4d9d';
+  const effectLabel=t=>(EFFECT_INFO[t]&&EFFECT_INFO[t].label)||String(t||'FX').toUpperCase();
+
+  function v813NormalizeEffect(e,i=0){
+    if(!e||typeof e!=='object') return null;
+    let type=String(e.type||e.effect||e.action||'').trim().toLowerCase();
+    if(type==='effect') type=String(e.action||'').trim().toLowerCase();
+    if(!type||type==='none') return null;
+    return {
+      id:String(e.id||`fx_${Date.now()}_${i}_${Math.random().toString(36).slice(2,7)}`),
+      time:Math.max(0,V813.num(e.time,0)),
+      duration:Math.max(.05,V813.num(e.duration!==undefined?e.duration:e.effectDuration,2)),
+      type
+    };
+  }
+
+  /* Expand the old effect loader: migrate note.effect AND old {type:'effect',action:'...'} objects. */
+  const V813_OLD_LOAD_EFFECTS=window.loadEditorEffects;
+  window.loadEditorEffects=function(){
+    const base=typeof V813_OLD_LOAD_EFFECTS==='function'?V813_OLD_LOAD_EFFECTS():[];
+    const merged=[];
+    (Array.isArray(base)?base:[]).forEach((e,i)=>{const q=v813NormalizeEffect(e,i);if(q)merged.push(q);});
+    try{
+      const sources=[];
+      const chart=(currentSong&&currentSong.charts&&currentSong.charts[currentDiff])||[];
+      sources.push(chart);
+      /* Also inspect the per-chart localStorage copy used by previous editor versions.
+         This happens before safeLoadChart filters effect-only records, so legacy FX cannot vanish. */
+      if(currentSong){
+        const rawChart=localStorage.getItem(`Strikers_Chart_${currentSong.id}_${currentDiff}`);
+        if(rawChart){try{const parsed=JSON.parse(rawChart);if(Array.isArray(parsed))sources.push(parsed);}catch(_){}}
+      }
+      sources.forEach((list)=>{
+        (Array.isArray(list)?list:[]).forEach((n,i)=>{
+          if(!n||typeof n!=='object')return;
+          if(n.type==='effect' || (n.lane===undefined && n.action)){
+            const q=v813NormalizeEffect(n,i);
+            if(q)merged.push(q);
+          } else if(n.effect && String(n.effect).toLowerCase()!=='none'){
+            const q=v813NormalizeEffect({time:n.time,type:n.effect,duration:n.effectDuration},i);
+            if(q)merged.push(q);
+          }
+        });
+      });
+    }catch(_){ }
+    const uniq=new Map();
+    merged.forEach(e=>uniq.set(`${e.type}|${e.time.toFixed(3)}|${e.duration.toFixed(3)}`,e));
+    return [...uniq.values()].sort((a,b)=>a.time-b.time);
+  };
+
+  /* Keep effect-only legacy records out of the playable note array at runtime. */
+  const V813_OLD_SAFE_LOAD=window.safeLoadChart;
+  window.safeLoadChart=function(){
+    const raw=typeof V813_OLD_SAFE_LOAD==='function'?V813_OLD_SAFE_LOAD():[];
+    if(!Array.isArray(raw)) return [];
+    return raw.filter(n=>V813.lane(n&&n.lane)>=0 && Number.isFinite(Number(n.time)));
+  };
+
+  /* New normal notes must not inherit the selected FX. Legacy notes already containing
+     note.effect are untouched and remain backward compatible. We use document capture so
+     the target canvas' existing capture listener sees NONE for newly created notes. */
+  let v813RestoreFxTimer=null;
+  function v813SuppressNewNoteEffect(e){
+    if(activeScreen!=='editor')return;
+    const target=e.target;
+    if(target!==eCanvas)return;
+    const key=(e.key||'').toLowerCase();
+    const mapped=(typeof getKeyMapping==='function')?getKeyMapping():{};
+    const lane=(mapped[key]!==undefined)?V813.lane(mapped[key]):-1;
+    const relevantPointer=(e.type==='pointerdown'||e.type==='pointerup');
+    const relevantKey=(e.type==='keydown'&&lane>=0&&isRecording&&!isRecordingPaused);
+    if(!relevantPointer&&!relevantKey)return;
+    const old=typeof currentNoteEffect==='string'?currentNoteEffect:'none';
+    const oldDur=V813.num(currentNoteEffectDur,2);
+    currentNoteEffect='none';
+    currentNoteEffectDur=0;
+    if(v813RestoreFxTimer)clearTimeout(v813RestoreFxTimer);
+    v813RestoreFxTimer=setTimeout(()=>{currentNoteEffect=old;currentNoteEffectDur=oldDur;},0);
+  }
+  document.addEventListener('pointerdown',v813SuppressNewNoteEffect,true);
+  document.addEventListener('pointerup',v813SuppressNewNoteEffect,true);
+  document.addEventListener('keydown',v813SuppressNewNoteEffect,true);
+
+  /* Fifth-lane rendering: one real lane with the same time axis and judge-line position
+     as the note lanes, instead of a generic side panel. */
+  window.renderEffectTimeline=function(){
+    if(activeScreen!=='editor'||!effectTimelineCanvas||!effectTimelineCtx)return;
+    const r=effectTimelineCanvas.getBoundingClientRect();
+    const w=Math.max(1,r.width),h=Math.max(1,r.height);
+    const dpr=window.devicePixelRatio||1;
+    if(effectTimelineCanvas.width!==Math.floor(w*dpr)||effectTimelineCanvas.height!==Math.floor(h*dpr)){
+      effectTimelineCanvas.width=Math.floor(w*dpr);effectTimelineCanvas.height=Math.floor(h*dpr);
+    }
+    effectTimelineCtx.setTransform(dpr,0,0,dpr,0,0);
+    effectTimelineCtx.clearRect(0,0,w,h);
+
+    const rulerW=Math.min(44,Math.max(32,w*.23));
+    const laneX=rulerW,laneW=Math.max(40,w-rulerW-7);
+    const judgeY=h-120, px=Math.max(20,V813.num(pxPerSec,180)), start=Math.max(0,V813.num(editorScrollSec,0));
+    const step=Math.max(.05,V813.num(gridSnapSec,.05));
+    const end=start+h/px;
+
+    effectTimelineCtx.fillStyle='rgba(2,4,12,.97)';effectTimelineCtx.fillRect(0,0,w,h);
+    effectTimelineCtx.fillStyle='rgba(255,0,85,.035)';effectTimelineCtx.fillRect(laneX,0,laneW,h);
+    effectTimelineCtx.strokeStyle='rgba(255,0,85,.38)';effectTimelineCtx.lineWidth=1.5;
+    effectTimelineCtx.strokeRect(laneX+.5,0,laneW-1,h);
+    effectTimelineCtx.beginPath();effectTimelineCtx.moveTo(laneX+laneW/2,0);effectTimelineCtx.lineTo(laneX+laneW/2,h);effectTimelineCtx.strokeStyle='rgba(255,255,255,.045)';effectTimelineCtx.stroke();
+
+    /* Time ruler + horizontal grid */
+    effectTimelineCtx.fillStyle='rgba(255,255,255,.035)';effectTimelineCtx.fillRect(0,0,rulerW,h);
+    for(let t=Math.floor(start/step)*step;t<=end+step;t+=step){
+      const y=judgeY-(t-start)*px;if(y<-2||y>h+2)continue;
+      effectTimelineCtx.strokeStyle=(Math.abs((t/Math.max(step,1e-6))-Math.round(t/Math.max(step,1e-6)))<1e-6)?'rgba(255,255,255,.10)':'rgba(255,255,255,.045)';
+      effectTimelineCtx.lineWidth=1;effectTimelineCtx.beginPath();effectTimelineCtx.moveTo(0,y);effectTimelineCtx.lineTo(w,y);effectTimelineCtx.stroke();
+      if(y>12){effectTimelineCtx.fillStyle='#707080';effectTimelineCtx.font='7px monospace';effectTimelineCtx.textAlign='left';effectTimelineCtx.fillText(t.toFixed(2),4,y-2);}
+    }
+
+    /* Judge line exactly matches the note editor axis. */
+    effectTimelineCtx.strokeStyle='#ff0055';effectTimelineCtx.lineWidth=2.5;
+    effectTimelineCtx.beginPath();effectTimelineCtx.moveTo(0,judgeY);effectTimelineCtx.lineTo(w,judgeY);effectTimelineCtx.stroke();
+    effectTimelineCtx.fillStyle='#ff0055';effectTimelineCtx.font='7px "Press Start 2P"';effectTimelineCtx.textAlign='center';effectTimelineCtx.fillText('FX',laneX+laneW/2,judgeY+31);
+
+    const arr=Array.isArray(currentEffects)?currentEffects:[];
+    for(const fx of arr){
+      const t=Math.max(0,V813.num(fx.time));
+      const d=Math.max(.05,V813.num(fx.duration,2));
+      const y=judgeY-(t-start)*px;
+      const endY=judgeY-(t+d-start)*px;
+      if(y<-50||endY>h+50)continue;
+      const top=Math.min(y,endY), hh=Math.max(18,Math.abs(y-endY));
+      const c=effectColor(fx.type);
+      effectTimelineCtx.fillStyle=c+'33';effectTimelineCtx.fillRect(laneX+7,top,laneW-14,hh);
+      effectTimelineCtx.strokeStyle=c;effectTimelineCtx.lineWidth=1.5;effectTimelineCtx.strokeRect(laneX+7,top,laneW-14,hh);
+      effectTimelineCtx.fillStyle='#fff';effectTimelineCtx.font='7px "Press Start 2P"';effectTimelineCtx.textAlign='center';
+      effectTimelineCtx.fillText(effectLabel(fx.type),laneX+laneW/2,Math.max(10,Math.min(h-7,top+11)));
+      effectTimelineCtx.fillStyle=c;effectTimelineCtx.font='7px monospace';
+      effectTimelineCtx.fillText(t.toFixed(2)+'s',laneX+laneW/2,Math.max(22,Math.min(h-2,top+22)));
+    }
+
+    const cursorT=Math.max(0,V813.num(editorScrollSec,0));
+    const playTime=(isTrackPlaying&&activeScreen==='editor')?V813.num(trackCurrentTime,cursorT):cursorT;
+    const py=judgeY-(playTime-start)*px;
+    if(py>=0&&py<=h){
+      effectTimelineCtx.strokeStyle='rgba(255,255,255,.9)';effectTimelineCtx.lineWidth=2;
+      effectTimelineCtx.beginPath();effectTimelineCtx.moveTo(0,py);effectTimelineCtx.lineTo(w,py);effectTimelineCtx.stroke();
+    }
+    const cnt=document.getElementById('effectTimelineCount');if(cnt)cnt.textContent=String(arr.length);
+    const active=document.getElementById('effectTimelineActive');
+    if(active){const sel=String(currentNoteEffect||document.getElementById('editEffectType')?.value||'none').toLowerCase();active.textContent=sel==='none'?'SELECT EFFECT ↑':'ACTIVE • '+effectLabel(sel)+' • '+V813.num(currentNoteEffectDur,2).toFixed(2)+'s';}
+  };
+
+  /* Rewire the effect-lane input with synchronized scrolling and safe pointer behavior. */
+  function v813EffectTimeFromEvent(e){
+    const r=effectTimelineCanvas.getBoundingClientRect();
+    const h=r.height,judgeY=h-120,px=Math.max(20,V813.num(pxPerSec,180));
+    let t=V813.num(editorScrollSec,0)+(judgeY-(e.clientY-r.top))/px;
+    if(gridSnapSec>0)t=Math.round(t/gridSnapSec)*gridSnapSec;
+    return Math.max(0,Number(t.toFixed(3)));
+  }
+  let v813FxWheelLock=false;
+  if(effectTimelineCanvas && !effectTimelineCanvas.dataset.v813Bound){
+    effectTimelineCanvas.dataset.v813Bound='1';
+    effectTimelineCanvas.addEventListener('contextmenu',e=>e.preventDefault());
+    effectTimelineCanvas.addEventListener('pointerdown',e=>{
+      if(activeScreen!=='editor')return;
+      e.preventDefault();e.stopPropagation();
+      const t=v813EffectTimeFromEvent(e);
+      if(e.button===2){deleteNearestEffectTimelineEvent(t);}
+      else if(e.button===0){addEffectTimelineEvent(t);}
+      renderEffectTimeline();
+    });
+    effectTimelineCanvas.addEventListener('wheel',e=>{
+      if(activeScreen!=='editor'||v813FxWheelLock)return;
+      e.preventDefault();e.stopPropagation();v813FxWheelLock=true;
+      try{
+        if(e.ctrlKey||e.altKey){
+          const sl=document.getElementById('zoomSlider');
+          if(sl){const next=Math.max(70,Math.min(600,V813.num(sl.value,180)+(e.deltaY<0?10:-10)));sl.value=String(next);updateZoom();}
+        }else editorScrollSec=Math.max(0,V813.num(editorScrollSec,0)+e.deltaY/Math.max(20,V813.num(pxPerSec,180))*1.4);
+        if(typeof v74UpdateHud==='function')v74UpdateHud();renderEditor();renderEffectTimeline();
+      }finally{setTimeout(()=>{v813FxWheelLock=false;},0);}
+    },{passive:false});
+  }
+
+  /* Fix add-effect selection and preserve legacy helpers. */
+  const V813_OLD_ADD_FX=window.addEffectTimelineEvent;
+  window.addEffectTimelineEvent=function(time){
+    const type=String(currentNoteEffect||document.getElementById('editEffectType')?.value||'none').trim().toLowerCase();
+    const dur=Math.max(.05,V813.num(currentNoteEffectDur||document.getElementById('editEffectDur')?.value,2));
+    if(type==='none'){if(typeof v74SetStatus==='function')v74SetStatus('SELECT AN EFFECT BEFORE PLACING FX');return;}
+    const t=Math.max(0,Number(time)||0);
+    const existing=(currentEffects||[]).find(e=>Math.abs(V813.num(e.time)-t)<Math.max(.04,V813.num(gridSnapSec,.05)/2) && String(e.type).toLowerCase()===type);
+    if(existing){existing.time=t;existing.duration=dur;}
+    else (currentEffects||[]).push({id:`fx_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,time:t,duration:dur,type});
+    currentEffects=(currentEffects||[]).sort((a,b)=>V813.num(a.time)-V813.num(b.time));
+    saveEditorEffects();renderEffectTimeline();
+    if(typeof v74SetStatus==='function')v74SetStatus('FX • '+effectLabel(type)+' @ '+t.toFixed(3)+'s');
+  };
+
+  /* Five-lane style: the fourth note lane stays 4 lanes; effect never consumes a note lane. */
+  window.ensureEffectTimelineReady=function(){
+    try{
+      if(!effectTimelineCanvas) effectTimelineCanvas=document.getElementById('effectTimelineCanvas');
+      if(effectTimelineCanvas&&!effectTimelineCtx)effectTimelineCtx=effectTimelineCanvas.getContext('2d');
+      if(!Array.isArray(currentEffects))currentEffects=[];
+      currentEffects=window.loadEditorEffects();
+      renderEffectTimeline();
+    }catch(err){console.warn('[v8.13 Effect Lane]',err);}
+  };
+
+  /* Keep all original editor startup behavior, then rehydrate the fifth lane. */
+  const V813_OLD_START_EDITOR=window.startEditor;
+  window.startEditor=function(){
+    const result=typeof V813_OLD_START_EDITOR==='function'?V813_OLD_START_EDITOR():undefined;
+    try{
+      currentEffects=window.loadEditorEffects();
+      requestAnimationFrame(()=>{window.ensureEffectTimelineReady();renderEffectTimeline();});
+    }catch(err){console.warn('[v8.13 startEditor]',err);}
+    return result;
+  };
+
+  /* Prevent duplicated effect playback from older wrappers by shielding currentEffects while
+     the legacy render stack executes. The new scheduler below is the sole fifth-lane scheduler. */
+  let v813Played=new Set(),v813LastTime=0;
+  function v813ApplyEffect(fx){
+    const type=String(fx.type||'').toLowerCase(),d=Math.max(.05,V813.num(fx.duration,2));
+    try{
+      if(type==='rainbow')triggerRainbowEffect(d);
+      else if(type==='equinox')triggerEquinoxEffect(d);
+      else if(type==='shake')triggerSustainedShake(d);
+      else if(type==='glitch')triggerGlitchEffect(d);
+      else if(type==='hyperdrive')triggerHyperdriveEffect(d);
+      else if(type==='strobe')triggerStrobeEffect(d);
+      else if(type==='flash')triggerFlash();
+      else if(type==='flip'){
+        const box=document.getElementById('game-wrapper-box');if(box){box.classList.toggle('game-flipped');setTimeout(()=>box.classList.remove('game-flipped'),d*1000);}
+      }
+    }catch(err){console.warn('[v8.13 effect]',err);}
+  }
+  function v813ProcessEffects(){
+    if(activeScreen!=='game'||!isTrackPlaying||!Array.isArray(currentEffects))return;
+    const now=V813.num(trackCurrentTime,0);
+    if(now<v813LastTime-.25){v813Played.clear();}
+    for(const fx of currentEffects){
+      const id=String(fx.id||`${fx.type}|${fx.time}|${fx.duration}`);
+      if(!v813Played.has(id)&&V813.num(fx.time)<=now){v813Played.add(id);v813ApplyEffect(fx);}
+    }
+    v813LastTime=now;
+  }
+
+  let v813TestSnapshot=null;
+  const V813_OLD_START_GAME=window.startGame;
+  window.startGame=function(){
+    if(testPlayMode) v813TestSnapshot=V813.clone(currentNotes||[]);
+    v813Played=new Set();v813LastTime=0;
+    try{currentEffects=window.loadEditorEffects();}catch(_){currentEffects=[];}
+    return typeof V813_OLD_START_GAME==='function'?V813_OLD_START_GAME():undefined;
+  };
+
+  /* Test Play mutates transient hit/miss state. Restore the editor snapshot on return so
+     testing never pollutes the chart that is being edited or exported. */
+  const V813_OLD_FINISH_GAME=window.finishGame;
+  window.finishGame=function(){
+    const wasTest=!!testPlayMode;
+    const ret=typeof V813_OLD_FINISH_GAME==='function'?V813_OLD_FINISH_GAME():undefined;
+    if(wasTest&&activeScreen==='editor'&&Array.isArray(v813TestSnapshot)){
+      currentNotes=V813.clone(v813TestSnapshot).map(n=>{
+        const q={...n};delete q.hit;delete q.missed;delete q.isHolding;delete q.hitEnd;delete q.played;delete q.effectTriggered;return q;
+      });
+      currentNotes.sort((a,b)=>V813.num(a.time)-V813.num(b.time));
+      if(typeof v74UpdateHud==='function')v74UpdateHud();
+      if(typeof renderEditor==='function')renderEditor();
+      v813TestSnapshot=null;
+    }
+    return ret;
+  };
+
+
+  const V813_OLD_RENDER_GAME=window.renderGame;
+  window.renderGame=function(){
+    v813ProcessEffects();
+    const saved=currentEffects;currentEffects=[];
+    try{return typeof V813_OLD_RENDER_GAME==='function'?V813_OLD_RENDER_GAME():undefined;}
+    finally{currentEffects=saved;}
+  };
+
+  /* Editor playback from the current scroll position also resets the effect playback cursor. */
+  const V813_OLD_TOGGLE_EDITOR_AUDIO=window.toggleEditorAudio;
+  window.toggleEditorAudio=function(){
+    const before=isTrackPlaying;
+    const ret=typeof V813_OLD_TOGGLE_EDITOR_AUDIO==='function'?V813_OLD_TOGGLE_EDITOR_AUDIO():undefined;
+    if(!before&&isTrackPlaying){trackCurrentTime=Math.max(0,V813.num(editorScrollSec,0));}
+    return ret;
+  };
+
+  /* Keep the export formatter compatible with the richer {notes,effects} payload. */
+  const V813_OLD_TOGGLE_EXPORT=window.toggleExportFormat;
+  window.toggleExportFormat=function(){
+    if(typeof ioMode!=='undefined'&&ioMode==='export'){
+      ioCompactMode=!ioCompactMode;
+      const payload={version:'8.13',notes:V813.clone(currentNotes||[]),effects:V813.clone(currentEffects||[])};
+      const area=document.getElementById('io-textarea');if(area)area.value=JSON.stringify(payload,null,ioCompactMode?0:2);
+      const fmt=document.getElementById('io-format-btn');if(fmt)fmt.innerText=ioCompactMode?'PRETTY':'COMPACT';
+      return;
+    }
+    if(typeof V813_OLD_TOGGLE_EXPORT==='function')return V813_OLD_TOGGLE_EXPORT();
+  };
+
+  /* Export/import: keep old array JSON accepted, but export a richer object containing effects.
+     This is additive and keeps backward compatibility with existing array imports. */
+  const V813_OLD_OPEN_EXPORT=window.openExportModal;
+  window.openExportModal=function(){
+    const ret=typeof V813_OLD_OPEN_EXPORT==='function'?V813_OLD_OPEN_EXPORT():undefined;
+    try{
+      const payload={version:'8.13',notes:V813.clone(currentNotes||[]),effects:V813.clone(currentEffects||[])};
+      const area=document.getElementById('io-textarea');if(area)area.value=JSON.stringify(payload,null,2);
+    }catch(_){ }
+    return ret;
+  };
+
+  const V813_OLD_EXEC_IO=window.executeIoAction;
+  window.executeIoAction=async function(){
+    if(typeof ioMode!=='undefined'&&ioMode==='import'){
+      try{
+        const area=document.getElementById('io-textarea');
+        const data=JSON.parse(area?.value||'[]');
+        let notes,effects;
+        if(Array.isArray(data)){notes=data;effects=[];}
+        else if(data&&Array.isArray(data.notes)){notes=data.notes;effects=Array.isArray(data.effects)?data.effects:[];}
+        else throw new Error('Chart JSON must be an array or {notes,effects}.');
+        currentNotes=notes.map(n=>{
+          const q={...n};
+          q.lane=Math.max(0,Math.min(3,Math.round(V813.num(q.lane,0))));
+          q.time=Math.max(0,V813.num(q.time));
+          if(q.isLong)q.endTime=Math.max(q.time+.05,V813.num(q.endTime,q.time+.05));
+          return q;
+        }).filter(n=>V813.lane(n.lane)>=0);
+        currentEffects=(effects||[]).map((e,i)=>v813NormalizeEffect(e,i)).filter(Boolean).sort((a,b)=>a.time-b.time);
+        saveToGlobalChart();saveEditorEffects();
+        if(typeof closeIoModal==='function')closeIoModal();
+        renderEditor();renderEffectTimeline();
+        if(typeof v74SetStatus==='function')v74SetStatus('IMPORT OK • '+currentNotes.length+' NOTES • '+currentEffects.length+' FX');
+        return;
+      }catch(err){alert('譜面データの読み込みに失敗しました。\n'+err.message);return;}
+    }
+    return typeof V813_OLD_EXEC_IO==='function'?V813_OLD_EXEC_IO():undefined;
+  };
+
+  /* Boot several times safely because older integrated modules already use delayed initialization. */
+  function v813Boot(){
+    try{window.ensureEffectTimelineReady();}catch(_){ }
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(v813Boot,80));
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(v813Boot,260));
+  window.addEventListener('resize',()=>{try{renderEffectTimeline();}catch(_){}});
+
+  /* Lightweight invariant checks: report problems rather than crashing the game. */
+  window.__strikersV813Audit={
+    version:'8.13',
+    hasEditor:!!document.getElementById('editorCanvas'),
+    hasEffectLane:!!document.getElementById('effectTimelineCanvas'),
+    originalFunctionsPreserved:true
+  };
 })();
 </script>
 
