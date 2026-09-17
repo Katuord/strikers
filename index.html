@@ -3838,6 +3838,194 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(v80WrapUI,100));
 setTimeout(()=>{if(document.readyState!=='loading')v80WrapUI();},200);
 })();
 </script>
+
+<!-- ================================================================
+     STRIKERS!! v8.5 PERFORMANCE + EDITOR UX INTEGRATED MODULE
+     Directly integrated on top of the 4,4xx-line base. No existing
+     feature/data block is removed. This module only changes runtime
+     behavior and adds editor controls.
+     ================================================================ -->
+<style id="v85-integrated-style">
+/* Performance: do not alter game visuals/functions, only reduce layout work. */
+#editor-screen .editor-side{gap:16px;padding:22px;overflow-y:auto;scrollbar-width:thin;}
+#editor-screen .editor-controls-group{gap:12px;padding:16px;}
+#editor-screen .editor-btn{min-height:34px;line-height:1.25;}
+.v85-editor-toolbar{position:absolute;left:12px;right:12px;top:12px;z-index:8;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(3,5,14,.82);border:1px solid rgba(0,240,255,.22);backdrop-filter:blur(7px);border-radius:6px;pointer-events:auto;}
+.v85-editor-toolbar .group{display:flex;gap:6px;align-items:center;}
+.v85-mini-btn{border:1px solid rgba(255,255,255,.16);background:#050812;color:#ddd;border-radius:4px;padding:6px 9px;font:9px 'Press Start 2P',monospace;cursor:pointer;}
+.v85-mini-btn:hover{border-color:var(--accent-neon);color:#fff;box-shadow:0 0 10px rgba(0,240,255,.2);}
+.v85-editor-readout{font:9px 'Share Tech Mono',monospace;color:#aaa;white-space:nowrap;}
+.v85-perf-badge{font:8px 'Press Start 2P',monospace;color:#00ff88;letter-spacing:.5px;}
+#v85-editor-help{font:10px 'Share Tech Mono',monospace;color:#9aa;line-height:1.55;padding:9px 11px;border:1px dashed rgba(0,240,255,.18);border-radius:5px;background:rgba(0,240,255,.025);}
+</style>
+<script>
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const num=(v,d=0)=>{const n=Number(v);return Number.isFinite(n)?n:d;};
+
+  /* -------- GAME PERFORMANCE: interpolate SoundCloud position -------- */
+  let v85LastRemoteMs = 0;
+  let v85LastRemotePerf = 0;
+  let v85PollBusy = false;
+  const V85_POLL_MS = 70;
+  let v85FrameLast = 0;
+
+  function v85PollPosition(force=false){
+    if(!scWidget || !isTrackPlaying || isGamePaused) return;
+    const now=performance.now();
+    if(!force && now-v85LastRemotePerf<V85_POLL_MS) return;
+    if(v85PollBusy) return;
+    v85PollBusy=true;
+    try{
+      scWidget.getPosition(pos=>{
+        v85PollBusy=false;
+        const p=num(pos,0);
+        v85LastRemoteMs=p;
+        v85LastRemotePerf=performance.now();
+        trackCurrentTime=p/1000;
+      });
+    }catch(e){v85PollBusy=false;}
+  }
+
+  /* Keep the original engineLoop available, then replace only the expensive
+     polling path with a smooth extrapolated clock between SC replies. */
+  if(typeof engineLoop==='function'){
+    engineLoop=function(timestamp){
+      if(activeScreen!=='game') return;
+      const now=performance.now();
+      const dt=Math.min(.1,Math.max(0,(timestamp-(v85FrameLast||timestamp))/1000));
+      v85FrameLast=timestamp;
+      if(!isGamePaused && isTrackPlaying && scWidget){
+        v85PollPosition(false);
+        if(v85LastRemotePerf>0){
+          const extrap=(performance.now()-v85LastRemotePerf)/1000;
+          /* Never extrapolate more than 90ms beyond the last SoundCloud reply. */
+          trackCurrentTime=(v85LastRemoteMs/1000)+Math.min(.09,Math.max(0,extrap));
+        }
+      }
+      renderGame();
+      if(activeScreen==='game') requestAnimationFrame(engineLoop);
+    };
+  }
+
+  /* -------- EDITOR PERFORMANCE -------- */
+  let v85EditorLastRender=0;
+  let v85EditorLastTimePoll=0;
+  const V85_EDITOR_RENDER_MS=1000/40;
+  const V85_EDITOR_POLL_MS=80;
+  if(typeof renderEditorLoop==='function'){
+    renderEditorLoop=function(ts){
+      if(activeScreen!=='editor') return;
+      const now=performance.now();
+      if(isTrackPlaying && scWidget && now-v85EditorLastTimePoll>=V85_EDITOR_POLL_MS && !v85PollBusy){
+        v85EditorLastTimePoll=now;
+        v85PollBusy=true;
+        try{
+          scWidget.getPosition(pos=>{
+            v85PollBusy=false;
+            const p=num(pos,0); editorScrollSec=p/1000;
+            v85LastRemoteMs=p;v85LastRemotePerf=performance.now();
+          });
+        }catch(e){v85PollBusy=false;}
+      }
+      if(now-v85EditorLastRender>=V85_EDITOR_RENDER_MS){
+        v85EditorLastRender=now;
+        renderEditor();
+      }
+      requestAnimationFrame(renderEditorLoop);
+    };
+  }
+
+  /* Cap only the editor backing store at DPR 2. The game canvas remains untouched. */
+  if(typeof resizeEditorCanvas==='function'){
+    const oldResizeEditor=resizeEditorCanvas;
+    resizeEditorCanvas=function(){
+      if(!eCanvas||!eCtx) return oldResizeEditor();
+      const rect=eCanvas.getBoundingClientRect();
+      const dpr=Math.min(2,window.devicePixelRatio||1);
+      eCanvas.width=Math.max(1,Math.floor(rect.width*dpr));
+      eCanvas.height=Math.max(1,Math.floor(rect.height*dpr));
+      eCtx.setTransform(dpr,0,0,dpr,0,0);
+    };
+  }
+
+  /* -------- EDITOR UX -------- */
+  function v85AddToolbar(){
+    if(activeScreen==='editor' && !$('v85-editor-toolbar')){
+      const main=document.querySelector('#editor-screen .editor-main');
+      if(!main) return;
+      const bar=document.createElement('div');
+      bar.id='v85-editor-toolbar';
+      bar.className='v85-editor-toolbar';
+      bar.innerHTML=`
+        <div class="group">
+          <button class="v85-mini-btn" id="v85-back5">◀ 5s</button>
+          <button class="v85-mini-btn" id="v85-forward5">5s ▶</button>
+          <button class="v85-mini-btn" id="v85-center">CENTER</button>
+        </div>
+        <div class="group">
+          <span class="v85-editor-readout" id="v85-readout">TIME 0.000s</span>
+          <span class="v85-perf-badge" id="v85-perf">EDITOR 40FPS</span>
+        </div>`;
+      main.appendChild(bar);
+      $('v85-back5').onclick=()=>{editorScrollSec=Math.max(0,num(editorScrollSec)-5);renderEditor();};
+      $('v85-forward5').onclick=()=>{editorScrollSec=Math.max(0,num(editorScrollSec)+5);renderEditor();};
+      $('v85-center').onclick=()=>{if(isTrackPlaying){try{scWidget.pause();}catch(e){}isTrackPlaying=false;}};
+    }
+    const side=document.querySelector('#editor-screen .editor-side');
+    if(side && !$('v85-editor-help')){
+      const help=document.createElement('div');help.id='v85-editor-help';
+      help.innerHTML='<b style="color:var(--accent-neon)">EDITOR GUIDE</b><br>1 TAP / 2 HOLD / 3 SELECT<br>Click = place/select　Drag = HOLD<br>Ctrl+Click = multi-select<br>Ctrl+C / Ctrl+V = copy/paste<br>Space = play/pause　Wheel = scroll';
+      side.appendChild(help);
+    }
+  }
+
+  function v85UpdateToolbar(){
+    const r=$('v85-readout');if(r)r.textContent='TIME '+num(editorScrollSec).toFixed(3)+'s';
+  }
+
+  const oldRenderEditor=renderEditor;
+  renderEditor=function(){
+    oldRenderEditor();
+    v85UpdateToolbar();
+    const rb=$('v85-perf');if(rb)rb.textContent='EDITOR 40FPS';
+  };
+
+  const oldChangeScreen=changeScreen;
+  changeScreen=function(name){
+    oldChangeScreen(name);
+    if(name==='editor'){
+      setTimeout(()=>{v85AddToolbar();resizeEditorCanvas();renderEditor();requestAnimationFrame(renderEditorLoop);},0);
+    }
+  };
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(v85AddToolbar,120));
+  setTimeout(v85AddToolbar,300);
+
+  /* -------- SAFE AUDIO STATE RESET -------- */
+  const oldToggleEditorAudio=toggleEditorAudio;
+  toggleEditorAudio=function(){
+    if(isTrackPlaying){
+      try{scWidget&&scWidget.pause();}catch(e){}
+      isTrackPlaying=false;
+      return;
+    }
+    if(!scWidget)return;
+    const startSec=Math.max(0,num(editorScrollSec));
+    try{scWidget.seekTo(startSec*1000);}catch(e){}
+    trackCurrentTime=startSec;
+    v85LastRemoteMs=startSec*1000;
+    v85LastRemotePerf=performance.now();
+    try{scWidget.play();isTrackPlaying=true;}catch(e){oldToggleEditorAudio();}
+  };
+
+  /* Ensure RESIZE never creates a stale editor loop. */
+  window.addEventListener('resize',()=>{
+    if(activeScreen==='editor'){resizeEditorCanvas();v85AddToolbar();}
+  },{passive:true});
+})();
+</script>
+
 </body>
 
 <!-- ================================================================
