@@ -288,6 +288,16 @@
             20%, 40%, 60%, 80% { opacity: 0.1; }
         }
 
+
+        /* Integrated Effect Timeline: dedicated lane to the right of the 4 note lanes */
+        #editorScreenBody { display:flex; flex:1; min-width:0; min-height:0; }
+        #editorEffectTimeline { width:260px; min-width:260px; height:100%; border-left:1px solid var(--border-line); background:rgba(4,6,14,0.94); position:relative; overflow:hidden; }
+        #effectTimelineCanvas { width:100%; height:100%; display:block; cursor:crosshair; touch-action:none; }
+        .effect-timeline-header { position:absolute; top:10px; left:10px; right:10px; z-index:2; pointer-events:none; display:flex; justify-content:space-between; align-items:center; font-family:'Press Start 2P'; font-size:9px; color:var(--accent-neon); text-shadow:0 0 8px var(--accent-neon); }
+        .effect-timeline-help { position:absolute; bottom:10px; left:10px; right:10px; z-index:2; pointer-events:none; color:#777; font-size:10px; line-height:1.5; background:rgba(0,0,0,0.42); padding:8px; border:1px solid rgba(255,255,255,0.08); }
+        .effect-chip { position:absolute; right:8px; padding:3px 6px; border:1px solid rgba(255,255,255,0.25); font:8px 'Press Start 2P'; background:rgba(0,0,0,0.45); pointer-events:none; }
+        @media (max-width: 900px){ #editorEffectTimeline{width:220px;min-width:220px;} }
+
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; background: var(--accent-neon); cursor: pointer; margin-top: -6px; border-radius: 2px; box-shadow: 0 0 8px var(--accent-neon); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #222; border-radius: 2px; }
@@ -480,6 +490,7 @@
                     <input type="number" id="editEffectDur" value="2.0" step="0.5" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
                 </div>
                 <button class="editor-btn" onclick="toggleHandGuide()" style="margin-top: 8px; border-color: #00ff88; color: #00ff88;">✋ HAND PLACEMENT</button>
+                <button class="editor-btn" onclick="addEffectTimelineEvent(editorScrollSec)" style="margin-top:4px; border-color:#ff4d9d; color:#ff4d9d;">＋ ADD TO EFFECT TRACK</button>
             </div>
 
             <div class="editor-controls-group">
@@ -524,7 +535,18 @@
             </div>
         </div>
         <div class="editor-main">
-            <canvas id="editorCanvas"></canvas>
+            <div id="editorScreenBody">
+                <canvas id="editorCanvas"></canvas>
+                <div id="editorEffectTimeline">
+                    <div class="effect-timeline-header"><span>EFFECT TIMELINE</span><span id="effectTimelineCount">0</span></div>
+                    <canvas id="effectTimelineCanvas"></canvas>
+                    <div class="effect-timeline-help">
+                        CLICK = EFFECT置置<br>
+                        RIGHT CLICK = DELETE<br>
+                        EFFECTは4レーンと完全分離
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -781,6 +803,13 @@
         let currentSong = (window.songList && window.songList.length > 0) ? window.songList[0] : null;
         let currentDiff = 'normal'; 
         let currentNotes = [];
+        // Dedicated effect timeline state; legacy note.effect remains fully supported.
+        let currentEffects = [];
+        let effectTimelineCanvas = null;
+        let effectTimelineCtx = null;
+        let effectTimelineDpr = 0;
+        let effectTimelineW = 0;
+        let effectTimelineH = 0;
         let activeScreen = 'title';
 
         let systemNoteSpeed = 3.0; 
@@ -1557,8 +1586,10 @@
                 if (rem <= 0 && !note.effectTriggered) {
                     note.effectTriggered = true;
                     try {
+                        const fx = (typeof note.effect === 'string' ? note.effect.trim().toLowerCase() : 'none');
+                        note.effect = fx;
                         const fxDuration = Math.max(0.1, Number(note.effectDuration) || 2);
-                        switch (note.effect) {
+                        switch (fx) {
                             case 'rainbow': triggerRainbowEffect(fxDuration); break;
                             case 'equinox': triggerEquinoxEffect(fxDuration); break;
                             case 'shake': triggerSustainedShake(fxDuration); break;
@@ -1602,7 +1633,19 @@
 
                 if(rem <= adjustedWindow && rem > -0.2 && !note.hit) {
                     let y = judgeY - (rem / adjustedWindow) * judgeY;
-                    drawNoteSkin(x + 4, y - 8, laneW - 8, 16, note.lane, false);
+                    const fx = (typeof note.effect === 'string' ? note.effect.trim().toLowerCase() : 'none');
+                    if(fx === 'rainbow'){
+                        const hue=(performance.now()/7.5)%360;
+                        gCtx.save();
+                        gCtx.shadowBlur=22;gCtx.shadowColor=`hsl(${hue},100%,60%)`;
+                        const rg=gCtx.createLinearGradient(x,y-9,x+laneW,y+9);
+                        for(let k=0;k<=6;k++)rg.addColorStop(k/6,`hsl(${(hue+k*60)%360},100%,55%)`);
+                        gCtx.fillStyle=rg;gCtx.fillRect(x+4,y-8,laneW-8,16);
+                        gCtx.strokeStyle='#fff';gCtx.lineWidth=2;gCtx.strokeRect(x+4,y-8,laneW-8,16);
+                        gCtx.restore();
+                    }else{
+                        drawNoteSkin(x + 4, y - 8, laneW - 8, 16, note.lane, false);
+                    }
                 }
                 
                 if(!isAutoPlay && rem <= -0.2 && !note.missed && !note.hit) {
@@ -1934,7 +1977,7 @@
                     lane: lane,
                     time: parseFloat(clickedTime.toFixed(3)),
                     speedMult: currentNoteSpeedMult,
-                    effect: currentNoteEffect,
+                    effect: (typeof currentNoteEffect==='string'?currentNoteEffect.trim().toLowerCase():'none'),
                     effectDuration: currentNoteEffectDur
                 };
                 currentNotes.push(newNote);
@@ -2182,6 +2225,11 @@
                     if (!isAutoPlay) executeHitJudgment(map[key]);
                 }
             } else if (activeScreen === 'editor') {
+                if (e.code === 'F9') {
+                    e.preventDefault();
+                    addEffectTimelineEvent(editorScrollSec);
+                    return;
+                }
                 if (e.code === 'Space') {
                     e.preventDefault();
                     toggleEditorAudio();
@@ -2212,6 +2260,153 @@
                 }
             }
         });
+
+        /* ================= INTEGRATED EFFECT TIMELINE ================= */
+        const EFFECT_TIMELINE_COLORS = {
+            rainbow:'#ff4d9d', equinox:'#ffffff', shake:'#ff8c00', glitch:'#00f0ff',
+            hyperdrive:'#00ff88', strobe:'#ffee00', none:'#666666'
+        };
+        function normalizeEditorEffects(list){
+            if(!Array.isArray(list)) return [];
+            return list.map((e,i)=>({
+                id: e.id || `fx_${Date.now()}_${i}_${Math.random().toString(36).slice(2,6)}`,
+                time: Math.max(0, Number(e.time)||0),
+                type: String(e.type||e.effect||'none').toLowerCase(),
+                duration: Math.max(0.05, Number(e.duration ?? e.effectDuration ?? 2)||2)
+            })).filter(e=>e.type && e.type!=='none').sort((a,b)=>a.time-b.time);
+        }
+        function effectStorageKey(){ return currentSong ? `Strikers_Effects_${currentSong.id}_${currentDiff}` : ''; }
+        function loadEditorEffects(){
+            if(!currentSong) return [];
+            const raw=localStorage.getItem(effectStorageKey());
+            if(raw){ try{return normalizeEditorEffects(JSON.parse(raw));}catch(e){} }
+            // One-time migration: preserve legacy note-bound effects without deleting them.
+            const legacy=[];
+            (currentSong.charts?.[currentDiff]||[]).forEach((n,i)=>{
+                if(n && n.effect && n.effect!=='none') legacy.push({id:`legacy_${i}_${n.time}`,time:Number(n.time)||0,type:String(n.effect).toLowerCase(),duration:Number(n.effectDuration)||2,legacy:true});
+            });
+            return normalizeEditorEffects(legacy);
+        }
+        function saveEditorEffects(){
+            if(!currentSong) return;
+            currentEffects=normalizeEditorEffects(currentEffects);
+            localStorage.setItem(effectStorageKey(), JSON.stringify(currentEffects));
+            if(document.getElementById('effectTimelineCount')) document.getElementById('effectTimelineCount').innerText=String(currentEffects.length);
+        }
+        function addEffectTimelineEvent(time){
+            const type=String(currentNoteEffect||document.getElementById('editEffectType')?.value||'rainbow').toLowerCase();
+            const dur=Math.max(0.05, Number(currentNoteEffectDur||document.getElementById('editEffectDur')?.value||2)||2);
+            if(type==='none') return;
+            const existing=currentEffects.find(e=>e.type===type && Math.abs(e.time-time)<Math.max(0.06,gridSnapSec||0.06));
+            if(existing){ existing.time=time; existing.duration=dur; }
+            else currentEffects.push({id:`fx_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,time,duration:dur,type});
+            saveEditorEffects(); renderEffectTimeline();
+        }
+        function deleteNearestEffectTimelineEvent(time){
+            if(!currentEffects.length) return;
+            let idx=-1,best=Infinity;
+            currentEffects.forEach((e,i)=>{const d=Math.abs(e.time-time); if(d<best){best=d;idx=i;}});
+            if(idx>=0 && best<Math.max(0.16, (gridSnapSec||0.05)*2.5)){ currentEffects.splice(idx,1); saveEditorEffects(); renderEffectTimeline(); }
+        }
+        function renderEffectTimeline(){
+            if(activeScreen!=='editor' || !effectTimelineCanvas) return;
+            const rect=effectTimelineCanvas.getBoundingClientRect();
+            const w=Math.max(1,rect.width), h=Math.max(1,rect.height);
+            const dpr = window.devicePixelRatio || 1;
+            if (effectTimelineDpr !== dpr || effectTimelineW !== w || effectTimelineH !== h) {
+                effectTimelineDpr = dpr; effectTimelineW = w; effectTimelineH = h;
+                effectTimelineCanvas.width=Math.floor(w*dpr); effectTimelineCanvas.height=Math.floor(h*dpr);
+            }
+            effectTimelineCtx.setTransform(dpr,0,0,dpr,0,0);
+            effectTimelineCtx.clearRect(0,0,w,h);
+            const timelineY=h-120;
+            effectTimelineCtx.fillStyle='rgba(255,255,255,0.035)'; effectTimelineCtx.fillRect(0,0,w,h);
+            effectTimelineCtx.strokeStyle='rgba(255,255,255,0.08)'; effectTimelineCtx.beginPath(); effectTimelineCtx.moveTo(0,timelineY); effectTimelineCtx.lineTo(w,timelineY); effectTimelineCtx.stroke();
+            effectTimelineCtx.font='10px "Press Start 2P"'; effectTimelineCtx.textAlign='left'; effectTimelineCtx.fillStyle='#777'; effectTimelineCtx.fillText('FX TRACK',10,timelineY+34);
+            const px=Number(pxPerSec)||180;
+            const start=Number(editorScrollSec)||0;
+            const end=start+h/px;
+            for(let t=Math.floor(start/Math.max(0.25,gridSnapSec||0.25))*Math.max(0.25,gridSnapSec||0.25); t<=end; t+=Math.max(0.25,gridSnapSec||0.25)){
+                const y=timelineY-(t-start)*px;
+                if(y<0||y>h) continue;
+                effectTimelineCtx.strokeStyle='rgba(255,255,255,0.07)'; effectTimelineCtx.beginPath(); effectTimelineCtx.moveTo(0,y); effectTimelineCtx.lineTo(w,y); effectTimelineCtx.stroke();
+                effectTimelineCtx.fillStyle='#666'; effectTimelineCtx.font='8px monospace'; effectTimelineCtx.fillText(t.toFixed(2)+'s',8,Math.max(12,y-3));
+            }
+            currentEffects.forEach((fx)=>{
+                const y=timelineY-(fx.time-start)*px;
+                const endY=timelineY-(fx.time+fx.duration-start)*px;
+                if(y<-30||endY>h+30) return;
+                const c=EFFECT_TIMELINE_COLORS[fx.type]||'#fff';
+                effectTimelineCtx.fillStyle=c+'55'; effectTimelineCtx.fillRect(58,Math.min(y,endY),w-70,Math.max(12,Math.abs(y-endY)));
+                effectTimelineCtx.strokeStyle=c; effectTimelineCtx.lineWidth=1.5; effectTimelineCtx.strokeRect(58,Math.min(y,endY),w-70,Math.max(12,Math.abs(y-endY)));
+                effectTimelineCtx.fillStyle='#fff'; effectTimelineCtx.font='8px "Press Start 2P"'; effectTimelineCtx.fillText((fx.type||'FX').toUpperCase(),64,Math.max(12,Math.min(y-4,h-8)));
+            });
+            const playY=timelineY-(trackCurrentTime-start)*px;
+            if(playY>=0&&playY<=h){ effectTimelineCtx.strokeStyle='rgba(255,255,255,0.9)'; effectTimelineCtx.lineWidth=2; effectTimelineCtx.beginPath(); effectTimelineCtx.moveTo(0,playY); effectTimelineCtx.lineTo(w,playY); effectTimelineCtx.stroke(); }
+            const cnt=document.getElementById('effectTimelineCount'); if(cnt) cnt.innerText=String(currentEffects.length);
+        }
+        function renderIntegratedEffectTimeline(){ renderEffectTimeline(); }
+        const __legacyRenderEditor = renderEditor;
+        renderEditor = function(){
+            __legacyRenderEditor();
+            if(activeScreen==='editor') renderEffectTimeline();
+        };
+        /* Hook legacy save/load without removing either system. */
+        const __legacyStartEditor = startEditor;
+        startEditor = function(){
+            __legacyStartEditor();
+            currentEffects=loadEditorEffects();
+            requestAnimationFrame(()=>renderEffectTimeline());
+        };
+        const __legacySaveToGlobalChart = saveToGlobalChart;
+        saveToGlobalChart = function(){
+            __legacySaveToGlobalChart();
+            saveEditorEffects();
+        };
+        /* Add dedicated effect events to game playback while retaining note-bound effects. */
+        let __playedEffectIds = new Set();
+        const __legacyStartGame = startGame;
+        startGame = function(){
+            __playedEffectIds=new Set();
+            currentEffects=loadEditorEffects();
+            return __legacyStartGame();
+        };
+        const __legacyRenderGame = renderGame;
+        renderGame = function(){
+            __legacyRenderGame();
+            if(activeScreen==='game' && Array.isArray(currentEffects)){
+                currentEffects.forEach(fx=>{
+                    if(!fx.legacy && !__playedEffectIds.has(fx.id) && trackCurrentTime>=fx.time){
+                        __playedEffectIds.add(fx.id);
+                        const d=Math.max(0.05,Number(fx.duration)||2);
+                        if(fx.type==='rainbow') triggerRainbowEffect(d);
+                        else if(fx.type==='equinox') triggerEquinoxEffect(d);
+                        else if(fx.type==='shake') triggerSustainedShake(d);
+                        else if(fx.type==='glitch') triggerGlitchEffect(d);
+                        else if(fx.type==='hyperdrive') triggerHyperdriveEffect(d);
+                        else if(fx.type==='strobe') triggerStrobeEffect(d);
+                    }
+                });
+            }
+        };
+        function initEffectTimeline(){
+            effectTimelineCanvas=document.getElementById('effectTimelineCanvas');
+            if(!effectTimelineCanvas) return;
+            effectTimelineCtx=effectTimelineCanvas.getContext('2d');
+            effectTimelineCanvas.addEventListener('contextmenu',e=>e.preventDefault());
+            effectTimelineCanvas.addEventListener('pointerdown',(e)=>{
+                if(activeScreen!=='editor') return;
+                const r=effectTimelineCanvas.getBoundingClientRect();
+                const y=e.clientY-r.top, h=r.height, timelineY=h-120, px=Number(pxPerSec)||180;
+                let t=editorScrollSec+(timelineY-y)/px;
+                if(gridSnapSec>0) t=Math.round(t/gridSnapSec)*gridSnapSec;
+                t=Math.max(0,Number(t.toFixed(3)));
+                if(e.button===2) deleteNearestEffectTimelineEvent(t); else addEffectTimelineEvent(t);
+            });
+            const ro=new ResizeObserver(()=>renderEffectTimeline()); ro.observe(effectTimelineCanvas);
+        }
+        window.addEventListener('resize',()=>renderEffectTimeline());
+        /* ================= END INTEGRATED EFFECT TIMELINE ================= */
 
         window.addEventListener('DOMContentLoaded', () => {
             const scIframe = document.getElementById('sc-player');
@@ -2968,7 +3163,7 @@
         lane = Math.max(0, Math.min(3, Number(lane)||0));
         const t = v72CurrentTime();
         if (typeof v71PushHistory === 'function') v71PushHistory('cursor-add-before');
-        const note={lane:lane,time:Number(t.toFixed(3)),speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur};
+        const note={lane:lane,time:Number(t.toFixed(3)),speedMult:currentNoteSpeedMult,effect:(typeof currentNoteEffect==='string'?currentNoteEffect.trim().toLowerCase():'none'),effectDuration:currentNoteEffectDur};
         const dup=(currentNotes||[]).some(n=>Number(n.lane)===lane && Math.abs((Number(n.time)||0)-t)<0.03);
         if(!dup){
             currentNotes.push(note);
@@ -4087,17 +4282,29 @@ setTimeout(()=>{if(document.readyState!=='loading')v80WrapUI();},200);
     catch(e){s87SCBusy=false;}
   }
   function s87Clock(){
-    if(s87LastSCPerf>0)return Math.max(0,s87LastSCSeconds+Math.min(.12,Math.max(0,(performance.now()-s87LastSCPerf)/1000)));
-    if(s87AudioEpochPerf>0)return Math.max(0,(performance.now()-s87AudioEpochPerf)/1000);
+    /* Before SoundCloud gives us the first confirmed position, never let
+       wall-clock time run ahead of the actual audio. That startup drift was
+       causing the first notes to become MISS while the music was still
+       catching up. */
+    if(s87LastSCPerf>0){
+      return Math.max(0,s87LastSCSeconds+Math.min(.12,Math.max(0,(performance.now()-s87LastSCPerf)/1000)));
+    }
     return Math.max(0,N(trackCurrentTime));
   }
   if(typeof startGame==='function'){
     const S87_START=startGame;
     startGame=function(){
       S87_START();
-      s87AudioEpochPerf=performance.now();s87LastSCPerf=0;s87LastSCSeconds=0;
+      /* Reset to an unconfirmed audio clock. The first SC callback becomes
+         the authoritative anchor; until then trackCurrentTime stays at 0. */
+      s87AudioEpochPerf=0;s87LastSCPerf=0;s87LastSCSeconds=0;s87LastPoll=0;s87SCBusy=false;
+      trackCurrentTime=0;
       if(scWidget&&isTrackPlaying){
-        try{scWidget.getPosition(pos=>{s87LastSCSeconds=Math.max(0,N(pos)/1000);trackCurrentTime=s87LastSCSeconds;s87LastSCPerf=performance.now();});}catch(e){}
+        try{scWidget.getPosition(pos=>{
+          s87LastSCSeconds=Math.max(0,N(pos)/1000);
+          trackCurrentTime=s87LastSCSeconds;
+          s87LastSCPerf=performance.now();
+        });}catch(e){}
       }
     };
   }
@@ -4730,7 +4937,7 @@ function v74PointerDown(e){
     let changed=false;
     for(let l=0;l<4;l++){
       if(!(currentNotes||[]).some(n=>v74Num(n.lane)===l&&Math.abs(v74Num(n.time)-t)<0.025)){
-        currentNotes.push({lane:l,time:t,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});changed=true;
+        currentNotes.push({lane:l,time:t,speedMult:currentNoteSpeedMult,effect:(typeof currentNoteEffect==='string'?currentNoteEffect.trim().toLowerCase():'none'),effectDuration:currentNoteEffectDur});changed=true;
       }
     }
     if(changed)v74Save();
@@ -4745,7 +4952,7 @@ function v74PointerDown(e){
     v74Selected=oldIdx;currentNotes.splice(oldIdx,1);v74Save();v74SetStatus('REMOVED NOTE');
   }else{
     v74PushHistory('tap-add-before');
-    currentNotes.push({lane:p.lane,time:p.time,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});
+    currentNotes.push({lane:p.lane,time:p.time,speedMult:currentNoteSpeedMult,effect:(typeof currentNoteEffect==='string'?currentNoteEffect.trim().toLowerCase():'none'),effectDuration:currentNoteEffectDur});
     v74Sort();v74Selected=currentNotes.findIndex(n=>v74Num(n.time)===p.time&&v74Num(n.lane)===p.lane);v74Save();v74SetStatus('TAP @ '+p.time.toFixed(3));v74PushHistory('tap-add-after');
   }
   e.stopImmediatePropagation();
@@ -4757,7 +4964,7 @@ function v74PointerUp(e){
   v74Drag=null;if(d.cancelled){e.stopImmediatePropagation();return;}
   const s=Math.min(d.start,p.time),end=Math.max(d.start,p.time);const finish=end>s?end: s+Math.max(0.1,v74Num(gridSnapSec,.05));
   v74PushHistory('hold-add-before');
-  currentNotes.push({lane:d.lane,time:Number(s.toFixed(3)),endTime:Number(finish.toFixed(3)),isLong:true,speedMult:currentNoteSpeedMult,effect:currentNoteEffect,effectDuration:currentNoteEffectDur});
+  currentNotes.push({lane:d.lane,time:Number(s.toFixed(3)),endTime:Number(finish.toFixed(3)),isLong:true,speedMult:currentNoteSpeedMult,effect:(typeof currentNoteEffect==='string'?currentNoteEffect.trim().toLowerCase():'none'),effectDuration:currentNoteEffectDur});
   v74Sort();v74Save();v74Selected=currentNotes.findIndex(n=>v74Num(n.time)===Number(s.toFixed(3))&&v74Num(n.lane)===d.lane&&n.isLong);
   v74SetStatus('HOLD '+s.toFixed(3)+' → '+finish.toFixed(3));v74PushHistory('hold-add-after');
   e.stopImmediatePropagation();
@@ -4825,6 +5032,10 @@ function v74AutoRepair(){
     if(n.effect===undefined)n.effect='none';
     if(n.effectDuration===undefined)n.effectDuration=2;
   });
+  currentNotes.forEach(n=>{
+    if(typeof n.effect==='string') n.effect=n.effect.trim().toLowerCase();
+    if(!['none','rainbow','equinox','shake','glitch','hyperdrive','strobe'].includes(n.effect)) n.effect='none';
+  });
   v74Sort();v74Save();v74PushHistory('auto-repair-after');v74SetStatus('AUTO REPAIR • '+repaired+' FIXED');
 }
 
@@ -4857,16 +5068,34 @@ renderEditor=function(){
   (currentNotes||[]).forEach((n,idx)=>{
     const lane=Math.max(0,Math.min(3,Math.round(v74Num(n.lane))));const x=lane*laneW+6;const nw=laneW-12;
     const y=jy-(v74Num(n.time)-editorScrollSec)*ep;
+    const fx=(typeof n.effect==='string'?n.effect.trim().toLowerCase():'none');
+    const isRainbow=fx==='rainbow';
+    const isSpecial=fx!=='none';
+    const fxHue=((performance.now()/10 + idx*45)%360);
+    const noteFill=isRainbow?`hsl(${fxHue},100%,55%)`:glowColors[lane];
     if(n.isLong&&n.endTime!==undefined){
       const ey=jy-(v74Num(n.endTime)-editorScrollSec)*ep;const top=Math.min(y,ey);const hh=Math.abs(y-ey);
-      ctx.fillStyle=glowColors[lane]+'55';ctx.fillRect(x+10,top,nw-20,Math.max(5,hh));
-      ctx.strokeStyle=glowColors[lane]+'cc';ctx.strokeRect(x+10,top,nw-20,Math.max(5,hh));
+      if(isRainbow){
+        const g=ctx.createLinearGradient(0,top,0,top+Math.max(5,hh));
+        for(let k=0;k<=6;k++)g.addColorStop(k/6,`hsl(${(fxHue+k*60)%360},100%,55%)`);
+        ctx.fillStyle=g;
+      }else{ctx.fillStyle=glowColors[lane]+'55';}
+      ctx.fillRect(x+10,top,nw-20,Math.max(5,hh));
+      ctx.strokeStyle=isRainbow?'rgba(255,255,255,.9)':glowColors[lane]+'cc';ctx.lineWidth=isRainbow?2:1;ctx.strokeRect(x+10,top,nw-20,Math.max(5,hh));
     }
     if(y>-30&&y<h+30){
-      ctx.shadowBlur=idx===v74Selected?18:8;ctx.shadowColor=glowColors[lane];ctx.fillStyle=glowColors[lane];ctx.fillRect(x,y-7,nw,14);ctx.shadowBlur=0;
-      if(idx===v74Selected){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x-2,y-9,nw+4,18);}
-      ctx.fillStyle='#000';ctx.font='8px monospace';ctx.textAlign='left';ctx.fillText(n.isLong?'HOLD':'TAP',x+5,y+3);
-      if(n.effect&&n.effect!=='none'){ctx.fillStyle='#fff';ctx.font='7px monospace';ctx.fillText(String(n.effect).toUpperCase(),x+nw-54,y-10);}
+      if(isRainbow){
+        ctx.shadowBlur=idx===v74Selected?24:14;ctx.shadowColor=`hsl(${fxHue},100%,65%)`;
+        ctx.fillStyle=noteFill;ctx.fillRect(x,y-8,nw,16);
+        ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.strokeRect(x-1,y-9,nw+2,18);
+        ctx.shadowBlur=0;
+      }else{
+        ctx.shadowBlur=idx===v74Selected?18:8;ctx.shadowColor=glowColors[lane];ctx.fillStyle=glowColors[lane];ctx.fillRect(x,y-7,nw,14);ctx.shadowBlur=0;
+        if(isSpecial){ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=1.5;ctx.strokeRect(x,y-8,nw,16);}
+      }
+      if(idx===v74Selected){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x-2,y-10,nw+4,20);}
+      ctx.fillStyle=isRainbow?'#fff':'#000';ctx.font='8px monospace';ctx.textAlign='left';ctx.fillText(n.isLong?'HOLD':'TAP',x+5,y+3);
+      if(isSpecial){ctx.fillStyle='#fff';ctx.font='bold 7px monospace';ctx.textAlign='right';ctx.fillText(fx.toUpperCase(),x+nw-5,y-10);}
     }
   });
 
@@ -5302,3 +5531,4 @@ const oldReset=window.resetVisualEffects;
 window.resetVisualEffects=function(){stop();if(typeof oldReset==='function')oldReset();};
 })();
 </script>
+
