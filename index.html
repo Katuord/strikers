@@ -1394,14 +1394,40 @@
         
         function triggerRainbowEffect(duration) {
             const el = document.getElementById('rainbow-overlay');
-            if(el) {
-                if (rainbowTimer) clearTimeout(rainbowTimer);
-                el.style.display = 'block';
-                el.style.animation = 'none';
-                void el.offsetWidth;
-                el.style.animation = `rainbowGlowNoRotate ${duration}s linear forwards`;
-                rainbowTimer = setTimeout(() => { el.style.display = 'none'; el.style.animation = ''; }, duration * 1000);
-            }
+            if(!el) return;
+            if (rainbowTimer) clearTimeout(rainbowTimer);
+            if (window.__strikersRainbowRAF) cancelAnimationFrame(window.__strikersRainbowRAF);
+            const total = Math.max(0.1, Number(duration) || 2) * 1000;
+            const start = performance.now();
+            const stepMs = 750;
+            el.style.display = 'block';
+            el.style.opacity = '0.62';
+            el.style.backgroundImage = 'none';
+            el.style.backgroundPosition = '50% 50%';
+            el.style.backgroundSize = '100% 100%';
+            el.style.mixBlendMode = 'screen';
+            el.style.transition = 'none';
+            const frame = (now) => {
+                const elapsed = now - start;
+                if (elapsed >= total) {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
+                    el.style.backgroundColor = 'transparent';
+                    window.__strikersRainbowRAF = null;
+                    return;
+                }
+                const hue = ((elapsed / stepMs) * 60) % 360;
+                el.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+                window.__strikersRainbowRAF = requestAnimationFrame(frame);
+            };
+            window.__strikersRainbowRAF = requestAnimationFrame(frame);
+            rainbowTimer = setTimeout(() => {
+                if (window.__strikersRainbowRAF) cancelAnimationFrame(window.__strikersRainbowRAF);
+                window.__strikersRainbowRAF = null;
+                el.style.opacity = '0';
+                el.style.display = 'none';
+                el.style.backgroundColor = 'transparent';
+            }, total + 30);
         }
         
         function triggerEquinoxEffect(duration) {
@@ -1530,12 +1556,19 @@
                 
                 if (rem <= 0 && !note.effectTriggered) {
                     note.effectTriggered = true;
-                    if (note.effect === 'rainbow') triggerRainbowEffect(note.effectDuration || 2);
-                    if (note.effect === 'equinox') triggerEquinoxEffect(note.effectDuration || 2);
-                    if (note.effect === 'shake') triggerSustainedShake(note.effectDuration || 2);
-                    if (note.effect === 'glitch') triggerGlitchEffect(note.effectDuration || 2);
-                    if (note.effect === 'hyperdrive') triggerHyperdriveEffect(note.effectDuration || 2);
-                    if (note.effect === 'strobe') triggerStrobeEffect(note.effectDuration || 2);
+                    try {
+                        const fxDuration = Math.max(0.1, Number(note.effectDuration) || 2);
+                        switch (note.effect) {
+                            case 'rainbow': triggerRainbowEffect(fxDuration); break;
+                            case 'equinox': triggerEquinoxEffect(fxDuration); break;
+                            case 'shake': triggerSustainedShake(fxDuration); break;
+                            case 'glitch': triggerGlitchEffect(fxDuration); break;
+                            case 'hyperdrive': triggerHyperdriveEffect(fxDuration); break;
+                            case 'strobe': triggerStrobeEffect(fxDuration); break;
+                        }
+                    } catch (fxError) {
+                        console.warn('Note effect recovery:', fxError);
+                    }
                 }
 
                 if (isAutoPlay) {
@@ -2156,12 +2189,14 @@
                 const map = getKeyMapping();
                 if (map[key] !== undefined) {
                     const lane = map[key];
-                    playTickSound();
+                    if (isAssistTick) playTickSound();
                     if (isRecording && !isRecordingPaused) {
                         let t = parseFloat(editorScrollSec.toFixed(3));
                         let newNote = { lane: lane, time: t, speedMult: currentNoteSpeedMult, effect: currentNoteEffect, effectDuration: currentNoteEffectDur };
                         currentNotes.push(newNote);
-                        currentNotes.sort((a, b) => a.time - b.time);
+                        if (!(typeof v77LiveEnabled === 'boolean' && v77LiveEnabled)) {
+                            currentNotes.sort((a, b) => a.time - b.time);
+                        }
                     }
                 }
             }
@@ -4027,6 +4062,79 @@ setTimeout(()=>{if(document.readyState!=='loading')v80WrapUI();},200);
   window.addEventListener('resize',()=>{
     if(activeScreen==='editor'){resizeEditorCanvas();v85AddToolbar();}
   },{passive:true});
+})();
+</script>
+
+
+<!-- ================================================================
+     STRIKERS!! v8.7 DIRECT INTEGRATION
+     Responsiveness, recorder performance, and effect reliability.
+     Existing v8.6 code is retained; this module only adjusts behavior.
+     ================================================================ -->
+<script>
+(function(){
+  'use strict';
+  const N=(v,d=0)=>{const n=Number(v);return Number.isFinite(n)?n:d;};
+  let s87LastSCPerf=0,s87LastSCSeconds=0,s87AudioEpochPerf=0,s87SCBusy=false,s87LastPoll=0;
+  const S87_POLL_MS=80;
+  function s87PollSC(force=false){
+    if(!scWidget||!isTrackPlaying||isGamePaused)return;
+    const now=performance.now();
+    if(!force&&now-s87LastPoll<S87_POLL_MS)return;
+    if(s87SCBusy)return;
+    s87SCBusy=true;s87LastPoll=now;
+    try{scWidget.getPosition(pos=>{s87LastSCSeconds=Math.max(0,N(pos)/1000);s87LastSCPerf=performance.now();trackCurrentTime=s87LastSCSeconds;s87SCBusy=false;});}
+    catch(e){s87SCBusy=false;}
+  }
+  function s87Clock(){
+    if(s87LastSCPerf>0)return Math.max(0,s87LastSCSeconds+Math.min(.12,Math.max(0,(performance.now()-s87LastSCPerf)/1000)));
+    if(s87AudioEpochPerf>0)return Math.max(0,(performance.now()-s87AudioEpochPerf)/1000);
+    return Math.max(0,N(trackCurrentTime));
+  }
+  if(typeof startGame==='function'){
+    const S87_START=startGame;
+    startGame=function(){
+      S87_START();
+      s87AudioEpochPerf=performance.now();s87LastSCPerf=0;s87LastSCSeconds=0;
+      if(scWidget&&isTrackPlaying){
+        try{scWidget.getPosition(pos=>{s87LastSCSeconds=Math.max(0,N(pos)/1000);trackCurrentTime=s87LastSCSeconds;s87LastSCPerf=performance.now();});}catch(e){}
+      }
+    };
+  }
+  window.addEventListener('keydown',function(e){
+    if(activeScreen!=='game'||isAutoPlay)return;
+    const lane=getKeyMapping()[e.key.toLowerCase()];
+    if(lane===undefined||keysState[lane])return;
+    e.preventDefault();
+    trackCurrentTime=s87Clock();keysState[lane]=true;
+    try{executeHitJudgment(lane);}catch(err){console.warn('Gameplay input recovery:',err);}
+  },true);
+  let s87LastEditorSave=0;
+  if(typeof saveToGlobalChart==='function'){
+    const S87_SAVE=saveToGlobalChart;
+    saveToGlobalChart=function(){
+      const now=performance.now();
+      if(isRecording&&!isRecordingPaused&&now-s87LastEditorSave<240)return;
+      s87LastEditorSave=now;
+      return S87_SAVE();
+    };
+  }
+  function s87EditorClock(){
+    if(activeScreen!=='editor')return N(editorScrollSec);
+    if(isTrackPlaying&&s87LastSCPerf>0)return Math.max(0,s87LastSCSeconds+Math.min(.12,Math.max(0,(performance.now()-s87LastSCPerf)/1000)));
+    return Math.max(0,N(editorScrollSec));
+  }
+  if(typeof renderEditorLoop==='function'){
+    const S87_EDITOR_LOOP=renderEditorLoop;
+    renderEditorLoop=function(ts){
+      if(activeScreen!=='editor')return;
+      if(isTrackPlaying&&scWidget){s87PollSC(false);editorScrollSec=s87EditorClock();}
+      return S87_EDITOR_LOOP(ts);
+    };
+  }
+  const rb=document.getElementById('rainbow-overlay');
+  if(rb){rb.style.backgroundImage='none';rb.style.backgroundPosition='50% 50%';rb.style.backgroundSize='100% 100%';rb.style.opacity='0';}
+  console.info('[Strikers v8.7] responsiveness/effect integration active');
 })();
 </script>
 
