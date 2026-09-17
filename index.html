@@ -3726,7 +3726,11 @@ function v80DeleteSelected(){
 }
 
 /* ---------- Safer click/edit behavior ---------- */
-const V80_PREV_V74_POINTER_DOWN=v74PointerDown;
+const V80_PREV_V74_POINTER_DOWN=function(e){
+  /* v8.2 loads before the v7.4 editor layer. Resolve the base handler lazily
+     so the editor stack can initialize instead of aborting at load time. */
+  if(typeof window.__strikersV74PointerDownBase==='function') return window.__strikersV74PointerDownBase(e);
+};
 v74PointerDown=function(e){
  if(activeScreen!=='editor'||e.button!==0){return V80_PREV_V74_POINTER_DOWN(e);}
  const p=v74PointerInfo(e);
@@ -4216,6 +4220,201 @@ if(rb){
   const oldReset=window.resetVisualEffects;
   window.resetVisualEffects=function(){rbStop();if(typeof oldReset==='function')oldReset();};
 }
+})();
+</script>
+
+
+
+<!-- ================================================================
+     STRIKERS!! v8.6 STABILITY / RECOVERY INTEGRATION
+     IMPORTANT: this layer is additive. It does not remove the existing
+     editor, recorder, gameplay, chart, or effect code. It repairs the
+     initialization order used by older integrated modules and provides
+     reliable fallbacks for essential editor actions.
+     ================================================================ -->
+<script>
+(function(){
+'use strict';
+
+function S86num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
+function S86clone(v){try{return JSON.parse(JSON.stringify(v||[]));}catch(_){return [];}}
+function S86safeStatus(t){try{if(typeof v74SetStatus==='function')v74SetStatus(t);}catch(_){} }
+
+/* The v8.2 module executes before v7.4 declares v74PointerDown. The lazy
+   callback above prevents that initialization crash. Once the v7.4 layer is
+   available, retain its real handler as the base for multi-select input. */
+function S86InstallEditorInput(){
+  if(typeof v74PointerDown!=='function'||!eCanvas)return;
+  if(!window.__strikersV74PointerDownBase) window.__strikersV74PointerDownBase=v74PointerDown;
+  if(eCanvas.dataset.s86PointerBound==='1')return;
+  eCanvas.dataset.s86PointerBound='1';
+
+  const base=window.__strikersV74PointerDownBase;
+  eCanvas.addEventListener('pointerdown',function(e){
+    if(activeScreen!=='editor'||e.button!==0){base(e);return;}
+    try{
+      const rect=eCanvas.getBoundingClientRect();
+      const x=e.clientX-rect.left, y=e.clientY-rect.top;
+      const lane=Math.max(0,Math.min(3,Math.floor(x/(rect.width/4))));
+      const judge=(typeof v74JudgeY==='function'?v74JudgeY(rect.height):rect.height-118);
+      const ep=(typeof v74EffectivePx==='function'?v74EffectivePx():Math.max(70,S86num(pxPerSec,180)));
+      const t=(typeof v74Snap==='function'?v74Snap(Math.max(0,S86num(editorScrollSec)+ (judge-y)/ep)):Math.max(0,S86num(editorScrollSec)+(judge-y)/ep));
+      const hit=(typeof v74FindAt==='function')?v74FindAt(x,y):-1;
+
+      /* Ctrl-click / Shift-click are selection operations only. They must
+         never fall through into the legacy tap toggle which removes notes. */
+      if(e.ctrlKey||e.metaKey){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if(typeof v80Selection!=='undefined'){
+          if(hit>=0){ if(v80Selection.has(hit))v80Selection.delete(hit); else v80Selection.add(hit); v74Selected=hit; }
+          if(typeof v74UpdateHud==='function')v74UpdateHud();
+          S86safeStatus('MULTI SELECT • '+(typeof v80Selection!=='undefined'?v80Selection.size:0)+' NOTES');
+        }
+        return;
+      }
+      if(e.shiftKey && hit>=0 && typeof v80Selection!=='undefined'){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const anchor=[...v80Selection][0];
+        if(anchor!==undefined&&currentNotes[anchor]){
+          const lo=Math.min(S86num(currentNotes[anchor].time),S86num(currentNotes[hit].time));
+          const hi=Math.max(S86num(currentNotes[anchor].time),S86num(currentNotes[hit].time));
+          v80Selection.clear();currentNotes.forEach((n,i)=>{const nt=S86num(n.time);if(nt>=lo&&nt<=hi)v80Selection.add(i);});
+          v74Selected=hit;
+          if(typeof v74UpdateHud==='function')v74UpdateHud();
+          S86safeStatus('RANGE SELECT • '+v80Selection.size+' NOTES');
+          return;
+        }
+      }
+      /* IMPORTANT: ordinary clicks always use the real v7.4 editor handler.
+         That keeps TAP/HOLD placement exactly where it already worked. */
+      base(e);
+    }catch(err){
+      try{base(e);}catch(_){}
+    }
+  },true);
+}
+
+/* Reliable Test Play path. It saves the in-memory chart first, records the
+   editor viewport, then enters the existing gameplay function. */
+function S86InstallTestPlay(){
+  if(typeof tryTestPlay!=='function'||window.__s86TestPlayInstalled)return;
+  window.__s86TestPlayInstalled=true;
+  const old=tryTestPlay;
+  tryTestPlay=function(){
+    try{
+      if(typeof editorReturnState!=='undefined'){
+        editorReturnState.scrollSec=Math.max(0,S86num(editorScrollSec));
+        editorReturnState.zoom=Math.max(70,Math.min(600,S86num(pxPerSec,180)));
+      }
+      if(typeof saveToGlobalChart==='function')saveToGlobalChart();
+      testPlayMode=true;
+      /* Call the already integrated start path; don't rebuild gameplay. */
+      if(typeof startGame==='function')startGame(); else old();
+      S86safeStatus('TEST PLAY • RUNNING CURRENT CHART');
+    }catch(err){
+      testPlayMode=false;
+      try{if(typeof changeScreen==='function')changeScreen('editor');}catch(_){ }
+      S86safeStatus('TEST PLAY ERROR • EDITOR RESTORED');
+      console.error('Strikers Test Play recovery:',err);
+    }
+  };
+}
+
+/* Keep editor playback at its current scroll position. */
+function S86InstallEditorAudio(){
+  if(typeof toggleEditorAudio!=='function'||window.__s86EditorAudioInstalled)return;
+  window.__s86EditorAudioInstalled=true;
+  const old=toggleEditorAudio;
+  toggleEditorAudio=function(){
+    try{
+      if(!scWidget){return;}
+      if(isTrackPlaying){scWidget.pause();isTrackPlaying=false;return;}
+      const start=Math.max(0,S86num(editorScrollSec));
+      scWidget.seekTo(start*1000);
+      trackCurrentTime=start;
+      scWidget.play();
+      isTrackPlaying=true;
+      lastFrameTimestamp=performance.now();
+    }catch(err){try{old();}catch(_){}}
+  };
+}
+
+/* Import/export safety: never leave a modal stuck or destroy the in-memory
+   editor chart when clipboard APIs are unavailable. */
+function S86InstallIO(){
+  if(typeof executeIoAction!=='function'||window.__s86IOInstalled)return;
+  window.__s86IOInstalled=true;
+  const old=executeIoAction;
+  executeIoAction=async function(){
+    try{
+      const area=document.getElementById('io-textarea');
+      if(!area){return old();}
+      if(typeof ioMode!=='undefined'&&ioMode==='import'){
+        const data=JSON.parse(area.value||'[]');
+        if(!Array.isArray(data))throw new Error('Chart must be an array');
+        currentNotes=S86clone(data).map(n=>{
+          const q={...n};
+          q.lane=Math.max(0,Math.min(3,Math.round(S86num(q.lane,0))));
+          q.time=Math.max(0,S86num(q.time));
+          if(q.isLong)q.endTime=Math.max(q.time+.05,S86num(q.endTime,q.time+.05));
+          return q;
+        });
+        currentNotes.sort((a,b)=>S86num(a.time)-S86num(b.time));
+        saveToGlobalChart();
+        if(typeof closeIoModal==='function')closeIoModal();
+        if(typeof renderEditor==='function')renderEditor();
+        S86safeStatus('IMPORT OK • '+currentNotes.length+' NOTES');
+        return;
+      }
+      if(typeof ioMode!=='undefined'&&ioMode==='export'){
+        const text=area.value||JSON.stringify(currentNotes||[],null,2);
+        try{await navigator.clipboard.writeText(text);S86safeStatus('COPIED • CHART JSON');return;}catch(_){
+          area.focus();area.select();S86safeStatus('SELECTED • PRESS CTRL+C');return;
+        }
+      }
+      return old();
+    }catch(err){alert('譜面データの読み込みに失敗しました。\n'+err.message);}
+  };
+}
+
+/* Fix the tab handler for browsers where inline `event` is not exposed. */
+window.switchTab=function(tabName){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  const target=document.querySelector('.tab-btn[onclick*="'+tabName+'"])');
+  if(target)target.classList.add('active');
+  const content=document.getElementById('tab-'+tabName);
+  if(content)content.classList.add('active');
+};
+
+/* Avoid editor-state loss when changing screens. */
+const S86OldChangeScreen=changeScreen;
+changeScreen=function(screenName){
+  S86OldChangeScreen(screenName);
+  if(screenName==='editor'){
+    setTimeout(()=>{
+      S86InstallEditorInput();S86InstallTestPlay();S86InstallEditorAudio();S86InstallIO();
+      try{if(typeof v74EnsureUI==='function')v74EnsureUI();}catch(_){ }
+      try{resizeEditorCanvas();renderEditor();}catch(_){ }
+    },0);
+  }
+};
+
+function S86Boot(){
+  try{
+    S86InstallEditorInput();
+    S86InstallTestPlay();
+    S86InstallEditorAudio();
+    S86InstallIO();
+    if(activeScreen==='editor'){
+      setTimeout(()=>{try{if(typeof v74EnsureUI==='function')v74EnsureUI();}catch(_){};S86InstallEditorInput();renderEditor();},0);
+    }
+  }catch(err){console.warn('Strikers v8.6 recovery boot:',err);}
+}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(S86Boot,120));
+setTimeout(S86Boot,250);
 })();
 </script>
 
