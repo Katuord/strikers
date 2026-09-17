@@ -490,7 +490,11 @@
                     <input type="number" id="editEffectDur" value="2.0" step="0.5" class="cyber-select" style="width:70px;" onchange="updateNoteFx()">
                 </div>
                 <button class="editor-btn" onclick="toggleHandGuide()" style="margin-top: 8px; border-color: #00ff88; color: #00ff88;">✋ HAND PLACEMENT</button>
-                <button class="editor-btn" onclick="addEffectTimelineEvent(editorScrollSec)" style="margin-top:4px; border-color:#ff4d9d; color:#ff4d9d;">＋ ADD TO EFFECT TRACK</button>
+                <div style="display:flex;gap:6px;margin-top:4px;">
+                    <button class="editor-btn" onclick="addEffectTimelineEvent(editorScrollSec)" style="flex:1;border-color:#ff4d9d;color:#ff4d9d;">＋ ADD FX</button>
+                    <button class="editor-btn" onclick="previewCurrentEffect()" style="flex:1;border-color:#00ff88;color:#00ff88;">▶ PREVIEW FX</button>
+                </div>
+                <button class="editor-btn" onclick="clearAllEffectTimelineEvents()" style="margin-top:4px;border-color:#888;color:#aaa;">🧹 CLEAR EFFECT TRACK</button>
             </div>
 
             <div class="editor-controls-group">
@@ -541,7 +545,7 @@
                     <div class="effect-timeline-header"><span>EFFECT TIMELINE</span><span id="effectTimelineCount">0</span></div>
                     <canvas id="effectTimelineCanvas"></canvas>
                     <div class="effect-timeline-help">
-                        CLICK = EFFECT置置<br>
+                        CLICK = EFFECTを配置<br>
                         RIGHT CLICK = DELETE<br>
                         EFFECTは4レーンと完全分離
                     </div>
@@ -2302,6 +2306,27 @@
             else currentEffects.push({id:`fx_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,time,duration:dur,type});
             saveEditorEffects(); renderEffectTimeline();
         }
+        function previewCurrentEffect(){
+            const type=String(currentNoteEffect||document.getElementById('editEffectType')?.value||'none').toLowerCase();
+            const d=Math.max(0.05,Number(currentNoteEffectDur||document.getElementById('editEffectDur')?.value||2)||2);
+            if(type==='none') return;
+            try{
+                if(type==='rainbow') triggerRainbowEffect(d);
+                else if(type==='equinox') triggerEquinoxEffect(d);
+                else if(type==='shake') triggerSustainedShake(d);
+                else if(type==='glitch') triggerGlitchEffect(d);
+                else if(type==='hyperdrive') triggerHyperdriveEffect(d);
+                else if(type==='strobe') triggerStrobeEffect(d);
+            }catch(err){ console.warn('[Effect Preview]',err); }
+        }
+        function clearAllEffectTimelineEvents(){
+            if(!currentEffects.length) return;
+            if(confirm('エフェクトタイムラインをすべて消しますか？')){
+                currentEffects=[];
+                saveEditorEffects();
+                renderEffectTimeline();
+            }
+        }
         function deleteNearestEffectTimelineEvent(time){
             if(!currentEffects.length) return;
             let idx=-1,best=Infinity;
@@ -2356,7 +2381,7 @@
         startEditor = function(){
             __legacyStartEditor();
             currentEffects=loadEditorEffects();
-            requestAnimationFrame(()=>renderEffectTimeline());
+            requestAnimationFrame(()=>{ ensureEffectTimelineReady(); renderEffectTimeline(); });
         };
         const __legacySaveToGlobalChart = saveToGlobalChart;
         saveToGlobalChart = function(){
@@ -2406,9 +2431,21 @@
             const ro=new ResizeObserver(()=>renderEffectTimeline()); ro.observe(effectTimelineCanvas);
         }
         window.addEventListener('resize',()=>renderEffectTimeline());
+        /* Make the dedicated effect lane a live editor feature. The original
+           canvas listener is preserved; this only ensures it is initialized. */
+        function ensureEffectTimelineReady(){
+            try {
+                if(!effectTimelineCanvas) initEffectTimeline();
+                currentEffects=loadEditorEffects();
+                renderEffectTimeline();
+            } catch(err) {
+                console.warn('[EffectTimeline] init failed', err);
+            }
+        }
         /* ================= END INTEGRATED EFFECT TIMELINE ================= */
 
         window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(ensureEffectTimelineReady, 0);
             const scIframe = document.getElementById('sc-player');
             if (scIframe && window.SC) {
                 scWidget = SC.Widget(scIframe);
@@ -4733,6 +4770,55 @@ setTimeout(S86Boot,250);
 })();
 </script>
 
+
+
+<!-- ================= v8.11 EFFECT TIMELINE + RAINBOW INTEGRATION ================= -->
+<style>
+#rainbow-overlay.v811-rainbow-uniform{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;
+  background-image:none!important;background-repeat:no-repeat!important;background-position:50% 50%!important;
+  background-size:100% 100%!important;mix-blend-mode:normal!important;pointer-events:none!important;
+  z-index:8000!important;will-change:background-color,opacity;
+}
+</style>
+<script>
+(function(){
+  'use strict';
+  const rb=document.getElementById('rainbow-overlay');
+  if(rb){
+    let rbRaf=0,rbEnd=0,rbStart=0,rbDuration=2;
+    const stops=[0,30,60,120,180,240,270,300,330,360];
+    function rbStop(){
+      if(rbRaf)cancelAnimationFrame(rbRaf);rbRaf=0;
+      if(rbEnd)clearTimeout(rbEnd);rbEnd=0;
+      rb.style.display='none';rb.style.opacity='0';rb.style.backgroundColor='transparent';
+      rb.style.backgroundImage='none';rb.style.filter='none';rb.classList.remove('v811-rainbow-uniform');
+    }
+    function rbHue(ms){
+      const cycle=ms/750,base=Math.floor(cycle),frac=cycle-base,i=base%(stops.length-1);
+      return stops[i]+(stops[i+1]-stops[i])*frac;
+    }
+    function rbFrame(now){
+      const elapsed=now-rbStart;
+      if(elapsed>=rbDuration*1000){rbStop();return;}
+      rb.style.backgroundColor='hsl('+rbHue(elapsed).toFixed(2)+',100%,50%)';
+      rb.style.opacity='0.68';rb.style.backgroundImage='none';rb.style.filter='none';
+      rbRaf=requestAnimationFrame(rbFrame);
+    }
+    window.triggerRainbowEffect=function(d){
+      rbStop();rbDuration=Math.max(.75,Number(d)||2);rb.classList.add('v811-rainbow-uniform');
+      rb.style.display='block';rb.style.transition='none';rb.style.opacity='0.68';
+      rb.style.backgroundImage='none';rb.style.filter='none';rb.style.backgroundColor='hsl(0,100%,50%)';
+      rbStart=performance.now();rbRaf=requestAnimationFrame(rbFrame);rbEnd=setTimeout(rbStop,rbDuration*1000+100);
+    };
+    const oldReset=window.resetVisualEffects;
+    window.resetVisualEffects=function(){rbStop();if(typeof oldReset==='function')oldReset();};
+  }
+  window.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(()=>{try{ensureEffectTimelineReady();}catch(_){}},0);
+  });
+})();
+</script>
 </html>
 <!-- ================================================================
      STRIKERS!! v7.4 EDITOR OVERHAUL - ADDITIVE ONLY
@@ -5531,4 +5617,108 @@ const oldReset=window.resetVisualEffects;
 window.resetVisualEffects=function(){stop();if(typeof oldReset==='function')oldReset();};
 })();
 </script>
+<!-- v8.12 INPUT RELIABILITY + EFFECT TIMELINE PLAYBACK INTEGRATION -->
+<script>
+(function(){
+  'use strict';
+  let s812StartPerf=0,s812StartSC=0,s812HasAnchor=false;
+  let s812LastSCPerf=0,s812LastSCSeconds=0,s812Polling=false,s812LastPoll=0,s812LastEffectTime=-1;
+  const S812_POLL_MS=80;
+  const n=(v,d=0)=>{const x=Number(v);return Number.isFinite(x)?x:d;};
+  const laneOf=v=>{const x=Math.trunc(Number(v));return Number.isInteger(x)&&x>=0&&x<4?x:-1;};
 
+  function s812Clock(){
+    if(activeScreen!=='game'||!isTrackPlaying)return n(trackCurrentTime);
+    const wall=s812HasAnchor?s812StartSC+Math.max(0,(performance.now()-s812StartPerf)/1000):n(trackCurrentTime);
+    const remote=s812LastSCPerf>0?s812LastSCSeconds+Math.min(.10,Math.max(0,(performance.now()-s812LastSCPerf)/1000)):wall;
+    return Math.max(0,Math.max(wall,remote));
+  }
+  function s812Poll(force=false){
+    if(!scWidget||!isTrackPlaying||isGamePaused)return;
+    const now=performance.now();
+    if(!force&&now-s812LastPoll<S812_POLL_MS)return;
+    if(s812Polling)return;
+    s812Polling=true;s812LastPoll=now;
+    try{scWidget.getPosition(pos=>{
+      const sec=Math.max(0,n(pos)/1000), perf=performance.now();
+      s812LastSCSeconds=sec;s812LastSCPerf=perf;trackCurrentTime=sec;
+      if(!s812HasAnchor){s812StartSC=sec;s812StartPerf=perf;s812HasAnchor=true;}
+      s812Polling=false;
+    });}catch(_){s812Polling=false;}
+  }
+
+  const OLD_START=startGame;
+  startGame=function(){
+    s812StartPerf=performance.now();s812StartSC=0;s812HasAnchor=false;s812LastSCPerf=0;s812LastSCSeconds=0;s812LastPoll=0;s812Polling=false;s812LastEffectTime=-1;
+    OLD_START();
+    if(scWidget&&isTrackPlaying){
+      try{scWidget.getPosition(pos=>{
+        const sec=Math.max(0,n(pos)/1000),perf=performance.now();
+        s812StartSC=sec;s812StartPerf=perf;s812LastSCSeconds=sec;s812LastSCPerf=perf;s812HasAnchor=true;trackCurrentTime=sec;
+      });}catch(_){s812HasAnchor=true;}
+    }else{s812HasAnchor=true;}
+  };
+
+  /* Existing gameplay handlers remain. This handler is a recovery layer: if an
+     earlier handler consumed the physical key but failed to match the note,
+     we retry with an explicitly normalized target. */
+  window.addEventListener('keydown',e=>{
+    if(activeScreen!=='game'||isAutoPlay)return;
+    const key=e.key.toLowerCase(),map=getKeyMapping();
+    if(map[key]===undefined)return;
+    const lane=laneOf(map[key]);if(lane<0)return;
+    const now=s812Clock();trackCurrentTime=now;
+    let target=null,best=Infinity;
+    for(const note of (Array.isArray(currentNotes)?currentNotes:[])){
+      if(laneOf(note.lane)!==lane||note.hit||note.missed)continue;
+      const d=Math.abs(n(note.time)-now);
+      if(d<best&&d<=.135){best=d;target=note;}
+    }
+    /* Do not double-score a note already accepted by the earlier handler. */
+    if(target && !target.hit && !target.missed){
+      try{executeHitJudgment(lane,false,target);}catch(err){console.warn('[v8.12] hit recovery',err);}
+    }
+  },true);
+
+  window.addEventListener('keyup',e=>{
+    if(activeScreen!=='game'||isAutoPlay)return;
+    const key=e.key.toLowerCase(),map=getKeyMapping();
+    if(map[key]===undefined)return;
+    const lane=laneOf(map[key]);if(lane<0)return;
+    keysState[lane]=false;
+    try{executeReleaseJudgment(lane);}catch(err){console.warn('[v8.12] release recovery',err);}
+  },true);
+
+  const OLD_ENGINE=engineLoop;
+  engineLoop=function(ts){
+    if(activeScreen!=='game')return;
+    if(!isGamePaused&&isTrackPlaying){s812Poll(false);trackCurrentTime=s812Clock();}
+    return OLD_ENGINE(ts);
+  };
+
+  /* Effect-timeline events are not notes. They trigger from their own track.
+     Legacy note.effect remains intact for backward compatibility. */
+  function playTimelineEffects(){
+    if(activeScreen!=='game'||!isTrackPlaying||!Array.isArray(currentEffects))return;
+    const now=trackCurrentTime;
+    for(const fx of currentEffects){
+      const t=n(fx.time);if(t<=now&&t>s812LastEffectTime){
+        const type=String(fx.type||'').toLowerCase(),d=Math.max(.05,n(fx.duration,2));
+        try{
+          if(type==='rainbow')triggerRainbowEffect(d);
+          else if(type==='equinox')triggerEquinoxEffect(d);
+          else if(type==='shake')triggerSustainedShake(d);
+          else if(type==='glitch')triggerGlitchEffect(d);
+          else if(type==='hyperdrive')triggerHyperdriveEffect(d);
+          else if(type==='strobe')triggerStrobeEffect(d);
+        }catch(err){console.warn('[v8.12] effect timeline',err);}
+      }
+    }
+    s812LastEffectTime=now;
+  }
+  const OLD_RENDER=renderGame;
+  renderGame=function(){playTimelineEffects();return OLD_RENDER();};
+})();
+</script>
+</body>
+</html>
